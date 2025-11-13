@@ -93,7 +93,7 @@ async function addAccount(e) {
 async function loginAccounts() {
   loginBtn.disabled = true;
   loginBtn.textContent = '登入中...';
-  loginStatusDiv.innerHTML = '<p class="text-blue-600 text-sm">正在執行登入，請稍候...</p>';
+  loginStatusDiv.innerHTML = '<p class="text-blue-600 text-sm">正在執行登入，請稍候（可能需要 1-2 分鐘）...</p>';
 
   try {
     const response = await fetch('/api/twscrape/login', {
@@ -103,8 +103,13 @@ async function loginAccounts() {
     const result = await response.json();
 
     if (result.success) {
-      loginStatusDiv.innerHTML = '<p class="text-green-600 text-sm">✓ 登入成功</p>';
-      loadAccounts();
+      loginStatusDiv.innerHTML = '<p class="text-green-600 text-sm">✓ 登入流程已完成</p>';
+      
+      // 延遲 1 秒後重新載入帳號列表，確保狀態已更新
+      setTimeout(() => {
+        loadAccounts();
+        showMessage('帳號狀態已更新', 'success');
+      }, 1000);
     } else {
       loginStatusDiv.innerHTML = `<p class="text-red-600 text-sm">✗ 登入失敗：${result.error}</p>`;
     }
@@ -116,6 +121,37 @@ async function loginAccounts() {
     loginBtn.textContent = '執行登入';
   }
 }
+
+/**
+ * 刪除帳號
+ * @param {string} username - 使用者名稱
+ */
+async function deleteAccountAction(username) {
+  if (!confirm(`確定要刪除帳號 @${username} 嗎？`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/twscrape/accounts/${username}`, {
+      method: 'DELETE'
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      showMessage(`帳號 @${username} 已刪除`, 'success');
+      loadAccounts();
+    } else {
+      showMessage(result.error || '刪除失敗', 'error');
+    }
+  } catch (error) {
+    console.error('刪除帳號錯誤:', error);
+    showMessage('網路錯誤，請稍後再試', 'error');
+  }
+}
+
+// 設為全域函數
+window.deleteAccountAction = deleteAccountAction;
 
 /**
  * 載入帳號列表
@@ -141,20 +177,29 @@ async function loadAccounts() {
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">啟用</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">最後使用</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">請求數</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
               ${result.data.map(acc => `
                 <tr>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${acc.username}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">@${acc.username}</td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm">${acc.logged_in ? 
-                    '<span class="text-green-600">✓</span>' : 
-                    '<span class="text-red-600">✗</span>'}</td>
+                    '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">已登入</span>' : 
+                    '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">未登入</span>'}</td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm">${acc.active ? 
                     '<span class="text-green-600">✓</span>' : 
                     '<span class="text-gray-400">-</span>'}</td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${acc.last_used || '-'}</td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${acc.total_req || 0}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    <button 
+                      onclick="deleteAccountAction('${acc.username}')"
+                      class="text-red-600 hover:text-red-900 font-medium"
+                    >
+                      刪除
+                    </button>
+                  </td>
                 </tr>
               `).join('')}
             </tbody>

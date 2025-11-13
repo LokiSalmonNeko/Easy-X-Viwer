@@ -116,8 +116,32 @@ async function addAccount(username, password, email, emailPassword = '') {
 }
 
 /**
- * 登入 twscrape 帳號
+ * 刪除 twscrape 帳號
+ * @param {string} username - Twitter 使用者名稱
  * @returns {Promise<boolean>}
+ */
+async function deleteAccount(username) {
+  try {
+    const { stdout, stderr } = await execAsync(`twscrape del_accounts ${username}`, {
+      timeout: 10000
+    });
+
+    console.log('twscrape del_accounts output:', stdout);
+    
+    if (stderr && !stderr.includes('WARNING')) {
+      console.error('twscrape del_accounts error:', stderr);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('刪除帳號失敗:', error.message);
+    throw new Error(`無法刪除帳號: ${error.message}`);
+  }
+}
+
+/**
+ * 登入 twscrape 帳號
+ * @returns {Promise<Object>} 登入結果，包含成功和失敗的帳號資訊
  */
 async function loginAccounts() {
   try {
@@ -131,7 +155,14 @@ async function loginAccounts() {
       console.error('twscrape login error:', stderr);
     }
 
-    return true;
+    // 解析登入結果
+    const result = {
+      success: true,
+      output: stdout,
+      message: '登入流程已執行'
+    };
+
+    return result;
   } catch (error) {
     console.error('登入帳號失敗:', error.message);
     throw new Error(`無法登入帳號: ${error.message}`);
@@ -180,6 +211,7 @@ module.exports = {
   checkTwscrapeInstalled,
   getTweetDetails,
   addAccount,
+  deleteAccount,
   loginAccounts,
   listAccounts
 };

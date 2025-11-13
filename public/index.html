@@ -61,6 +61,22 @@
           ></textarea>
         </div>
 
+        <div>
+          <label for="apiType" class="block text-sm font-medium text-gray-700 mb-1">
+            顯示方式
+          </label>
+          <select
+            id="apiType"
+            name="apiType"
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="embed">官方 Embed（推薦）</option>
+            <option value="twscrape">twscrape（年齡限制貼文）</option>
+            <option value="auto">自動（優先 Embed，失敗時使用 twscrape）</option>
+          </select>
+          <p class="text-xs text-gray-500 mt-1">年齡限制貼文建議選擇 twscrape 或自動</p>
+        </div>
+
         <button
           type="submit"
           class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"

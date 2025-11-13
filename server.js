@@ -412,6 +412,43 @@ app.post('/api/twscrape/accounts', async (req, res) => {
 });
 
 /**
+ * DELETE /api/twscrape/accounts/:username - 刪除 Twitter 帳號
+ */
+app.delete('/api/twscrape/accounts/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        error: 'username 為必填欄位'
+      });
+    }
+
+    const isInstalled = await twscrapeHelper.checkTwscrapeInstalled();
+    if (!isInstalled) {
+      return res.status(503).json({
+        success: false,
+        error: 'twscrape 未安裝'
+      });
+    }
+
+    await twscrapeHelper.deleteAccount(username);
+
+    res.json({
+      success: true,
+      message: '帳號刪除成功'
+    });
+  } catch (error) {
+    console.error('刪除帳號失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || '無法刪除帳號'
+    });
+  }
+});
+
+/**
  * POST /api/twscrape/login - 登入 twscrape 帳號
  */
 app.post('/api/twscrape/login', async (req, res) => {
@@ -424,11 +461,12 @@ app.post('/api/twscrape/login', async (req, res) => {
       });
     }
 
-    await twscrapeHelper.loginAccounts();
+    const result = await twscrapeHelper.loginAccounts();
 
     res.json({
       success: true,
-      message: '帳號登入成功'
+      message: '帳號登入流程已完成',
+      data: result
     });
   } catch (error) {
     console.error('登入失敗:', error);
