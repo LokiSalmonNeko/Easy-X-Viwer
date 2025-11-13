@@ -4,8 +4,10 @@
   "description": "輕量級 X (Twitter) 貼文影片管理 Web 應用",
   "main": "server.js",
   "scripts": {
+    "build:css": "tailwindcss -i ./src/input.css -o ./public/css/tailwind.css --minify",
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "prestart": "npm run build:css"
   },
   "keywords": [
     "twitter",
@@ -18,6 +20,9 @@
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.1"
   }
 }
 

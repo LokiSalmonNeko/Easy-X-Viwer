@@ -23,7 +23,7 @@
 
 ### 前端
 - 原生 HTML / JavaScript
-- TailwindCSS（CDN）
+- TailwindCSS（使用 Tailwind CLI 建置）
 - X 官方 widgets.js
 
 ## 安裝步驟
@@ -34,7 +34,15 @@
 npm install
 ```
 
-### 2. 啟動伺服器
+### 2. 建置 CSS（首次執行或修改樣式後）
+
+```bash
+npm run build:css
+```
+
+**注意**：執行 `npm start` 時會自動執行 `build:css`，但如果您想手動建置，可以使用此命令。
+
+### 3. 啟動伺服器
 
 ```bash
 npm start
@@ -59,10 +67,12 @@ project/
 │   ├── js/
 │   │   └── main.js        # 主頁面邏輯
 │   └── css/
-│       └── tailwind.css   # TailwindCSS（使用 CDN，此檔案可選）
+│       └── tailwind.css   # TailwindCSS（建置後產生）
 ├── src/
+│   ├── input.css          # Tailwind CSS 輸入檔案
 │   ├── recordStore.js     # JSON 檔案讀寫模組
 │   └── validators.js      # URL 驗證工具
+├── tailwind.config.js     # Tailwind CSS 配置檔案
 └── README.md              # 專案說明文件
 ```
 
@@ -225,6 +235,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
+RUN npm run build:css
 EXPOSE 3000
 CMD ["npm", "start"]
 ```

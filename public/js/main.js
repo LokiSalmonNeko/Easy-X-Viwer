@@ -106,12 +106,14 @@ async function loadAllRecords(searchQuery = '') {
 
       allRecordsContainer.innerHTML = records.map(record => renderRecord(record)).join('');
       
-      // 動態建立 Twitter embed（使用 setTimeout 確保 DOM 已更新）
-      setTimeout(() => {
-        records.forEach(record => {
-          createTweetEmbed(record.url, record.id);
-        });
-      }, 100);
+      // 動態建立 Twitter embed（使用 requestAnimationFrame 確保 DOM 已更新）
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          records.forEach(record => {
+            createTweetEmbed(record.url, record.id);
+          });
+        }, 300); // 給 widgets.js 更多時間載入
+      });
     } else {
       allRecordsContainer.innerHTML = '<p class="text-red-500 text-center py-8">載入失敗</p>';
     }
@@ -181,52 +183,66 @@ function renderRecord(record) {
  */
 function createTweetEmbed(url, id) {
   const container = document.getElementById(`tweet-${id}`);
-  if (!container) return;
+  if (!container) {
+    console.warn(`找不到容器: tweet-${id}`);
+    return;
+  }
 
   // 清空容器（避免重複載入）
   container.innerHTML = '';
 
+  // 建立 blockquote 元素
   const blockquote = document.createElement('blockquote');
   blockquote.className = 'twitter-tweet';
+  blockquote.setAttribute('data-theme', 'light');
+  
   const link = document.createElement('a');
   link.href = url;
+  link.textContent = url; // 暫時顯示 URL，載入後會被替換
+  
   blockquote.appendChild(link);
   container.appendChild(blockquote);
 
-  // 確保 Twitter widgets 已載入後再載入 embed
-  function loadEmbed() {
-    if (window.twttr && window.twttr.widgets) {
-      window.twttr.widgets.load(container).catch(err => {
-        console.error('載入 Twitter embed 失敗:', err);
-      });
+  // 等待 widgets.js 載入並渲染
+  let attempts = 0;
+  const maxAttempts = 50; // 最多等待 10 秒 (50 * 200ms)
+  
+  function waitAndLoad() {
+    attempts++;
+    
+    if (window.twttr && window.twttr.widgets && typeof window.twttr.widgets.load === 'function') {
+      // widgets.js 已載入，開始渲染
+      try {
+        console.log(`開始載入 Twitter embed: ${id}, URL: ${url}`);
+        window.twttr.widgets.load(container).then(() => {
+          console.log(`✓ Twitter embed 載入成功: ${id}`);
+        }).catch(err => {
+          console.error(`✗ 載入 Twitter embed 失敗 (${id}):`, err);
+          // 如果載入失敗，顯示連結
+          container.innerHTML = `<div class="p-4 border border-gray-300 rounded">
+            <p class="text-sm text-gray-600 mb-2">無法載入貼文預覽</p>
+            <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">${url}</a>
+          </div>`;
+        });
+      } catch (err) {
+        console.error(`渲染 Twitter embed 時發生錯誤 (${id}):`, err);
+        container.innerHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">${url}</a>`;
+      }
+    } else if (attempts < maxAttempts) {
+      // widgets.js 還沒載入，繼續等待
+      setTimeout(waitAndLoad, 200);
     } else {
-      // 如果 widgets 還沒載入，等待一下再試
-      setTimeout(loadEmbed, 100);
+      // 超時，顯示連結
+      console.warn(`Twitter widgets.js 載入超時 (${id})，顯示連結`);
+      container.innerHTML = `<div class="p-4 border border-gray-300 rounded">
+        <p class="text-sm text-gray-600 mb-2">載入超時</p>
+        <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">${url}</a>
+      </div>`;
     }
   }
 
-  // 使用 twttr.ready 確保 widgets.js 已載入
-  if (window.twttr && window.twttr.ready) {
-    window.twttr.ready(loadEmbed);
-  } else {
-    // 如果 twttr 還沒定義，等待 widgets.js 載入
-    const checkTwttr = setInterval(() => {
-      if (window.twttr) {
-        clearInterval(checkTwttr);
-        if (window.twttr.ready) {
-          window.twttr.ready(loadEmbed);
-        } else {
-          loadEmbed();
-        }
-      }
-    }, 100);
-
-    // 10 秒後停止檢查（避免無限等待）
-    setTimeout(() => {
-      clearInterval(checkTwttr);
-      loadEmbed();
-    }, 10000);
-  }
+  // 開始等待並載入
+  waitAndLoad();
 }
 
 /**
@@ -392,17 +408,26 @@ editModal.addEventListener('click', (e) => {
 
 // 頁面載入時載入所有紀錄
 document.addEventListener('DOMContentLoaded', () => {
-  // 確保 Twitter widgets 已載入
-  function initApp() {
-    if (window.twttr && window.twttr.ready) {
-      window.twttr.ready(() => {
-        loadAllRecords();
-      });
+  console.log('頁面載入完成，開始初始化...');
+  
+  // 檢查 widgets.js 是否已載入
+  function checkWidgets() {
+    if (window.twttr) {
+      console.log('Twitter widgets.js 已載入');
+      if (window.twttr.ready) {
+        window.twttr.ready(() => {
+          console.log('Twitter widgets.js 已準備就緒');
+        });
+      }
     } else {
-      // 如果 twttr 還沒載入，等待一下
-      setTimeout(initApp, 100);
+      console.log('等待 Twitter widgets.js 載入...');
+      setTimeout(checkWidgets, 500);
     }
   }
   
-  initApp();
+  // 開始檢查
+  checkWidgets();
+  
+  // 直接載入紀錄，createTweetEmbed 會處理 widgets.js 的載入
+  loadAllRecords();
 });
