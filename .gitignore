@@ -1,0 +1,33 @@
+# 依賴
+node_modules/
+
+# 建置產物
+public/css/tailwind.css
+
+# 資料檔案
+records.json
+
+# twscrape 資料庫
+*.db
+accounts.db
+
+# 系統檔案
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# 日誌
+*.log
+npm-debug.log*
+
+# 環境變數
+.env
+.env.local
+
+# 臨時檔案
+*.tmp
+*.temp
+

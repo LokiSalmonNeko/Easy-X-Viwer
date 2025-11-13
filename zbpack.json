@@ -1,0 +1,7 @@
+{
+  "build_command": "npm install && npm run build:css && (pip3 install twscrape || pip install twscrape || echo 'twscrape 安裝失敗（選用功能）')",
+  "start_command": "npm start",
+  "install_command": "npm install",
+  "node_version": "18"
+}
+

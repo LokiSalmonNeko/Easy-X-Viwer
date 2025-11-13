@@ -1,0 +1,17 @@
+{
+  "build": {
+    "commands": [
+      "npm install",
+      "npm run build:css",
+      "pip3 install twscrape || pip install twscrape || echo 'twscrape 為選用功能'"
+    ]
+  },
+  "start": {
+    "command": "npm start"
+  },
+  "runtime": {
+    "node": "18",
+    "python": "3.11"
+  }
+}
+

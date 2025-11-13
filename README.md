@@ -104,6 +104,10 @@ project/
 ├── server.js              # Express 後端主程式
 ├── records.json           # 資料儲存（啟動時自動建立）
 ├── package.json           # 專案依賴與腳本
+├── .gitignore             # Git 忽略檔案
+├── zbpack.json            # Zeabur 部署配置
+├── .zeabur/
+│   └── config.json        # Zeabur 部署配置（新版）
 ├── setup.sh               # 自動安裝腳本 (macOS/Linux)
 ├── setup.bat              # 自動安裝腳本 (Windows)
 ├── public/                # 靜態檔案目錄
@@ -120,7 +124,8 @@ project/
 │   ├── validators.js      # URL 驗證工具
 │   └── twscrapeHelper.js  # twscrape 輔助模組
 ├── tailwind.config.js     # Tailwind CSS 配置檔案
-└── README.md              # 專案說明文件
+├── README.md              # 專案說明文件
+└── DEPLOYMENT.md          # Zeabur 部署指南
 ```
 
 ## API 文件
@@ -332,18 +337,44 @@ project/
 
 ## 部署
 
-### Zeabur
+### Zeabur（一鍵部署）
 
-1. 將專案推送到 Git 倉庫
-2. 在 Zeabur 中建立新專案
-3. 連接 Git 倉庫
-4. 設定建置命令：`npm install && npm run build:css`
-5. 設定啟動命令：`npm start`
-6. 設定環境變數 `PORT`（可選，預設為 3000）
+[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/referral?referralCode=LokiSalmonNeko&utm_source=LokiSalmonNeko&utm_campaign=oss)
 
-**啟用 twscrape 功能（選用）：**
-- 在 Zeabur 中啟用 Python Runtime
-- 修改啟動命令為：`pip3 install twscrape && npm start`
+專案已包含完整的 Zeabur 配置文件，**會自動安裝 twscrape**：
+
+#### 自動部署流程
+
+1. 點擊上方的「Deploy on Zeabur」按鈕，或
+2. 手動部署：
+   - 將專案推送到 Git 倉庫
+   - 在 Zeabur 中建立新專案並連接倉庫
+
+3. Zeabur 會自動執行（透過 `.zeabur/config.json`）：
+   - ✅ 安裝 Node.js 18 runtime
+   - ✅ 安裝 Python 3.11 runtime
+   - ✅ 執行 `npm install`
+   - ✅ 執行 `npm run build:css`
+   - ✅ **執行 `pip3 install twscrape`**（自動安裝）
+   - ✅ 啟動伺服器
+
+#### 配置文件說明
+
+專案包含兩個配置文件：
+- `.zeabur/config.json` - 新版配置（推薦）
+- `zbpack.json` - 舊版配置（備用）
+
+詳細部署指南請參閱 [DEPLOYMENT.md](./DEPLOYMENT.md)
+
+#### 驗證 twscrape 安裝
+
+部署完成後，訪問 `https://your-app.zeabur.app/settings.html`：
+- 如果看到帳號列表（空的），表示 twscrape 已安裝 ✅
+- 如果看到「twscrape 未安裝」警告，表示安裝失敗 ❌
+
+**注意**：
+- twscrape 安裝失敗不會影響主要功能
+- 僅備用載入功能（年齡限制貼文）無法使用
 
 ### Docker
 

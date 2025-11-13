@@ -1,0 +1,121 @@
+# Zeabur 部署指南
+
+## 自動部署配置
+
+本專案已包含 Zeabur 配置文件，會自動處理所有部署步驟，包括 twscrape 的安裝。
+
+## 配置文件
+
+### `.zeabur/config.json`
+專案使用 Zeabur 配置文件來自動化部署流程：
+
+```json
+{
+  "build": {
+    "commands": [
+      "npm install",
+      "npm run build:css",
+      "pip3 install twscrape || pip install twscrape || echo 'twscrape 為選用功能'"
+    ]
+  },
+  "start": {
+    "command": "npm start"
+  },
+  "runtime": {
+    "node": "18",
+    "python": "3.11"
+  }
+}
+```
+
+這個配置確保：
+- ✅ 自動安裝 Node.js 依賴
+- ✅ 自動建置 Tailwind CSS
+- ✅ **自動安裝 twscrape**（如果 Python 可用）
+- ✅ 使用 Node 18 和 Python 3.11 runtime
+
+## 部署步驟
+
+### 1. 推送到 Git 倉庫
+
+```bash
+git add .
+git commit -m "Initial commit"
+git push origin main
+```
+
+### 2. 在 Zeabur 建立專案
+
+1. 登入 [Zeabur](https://zeabur.com)
+2. 點擊「Create New Project」
+3. 選擇「Import from GitHub」
+4. 選擇您的倉庫
+5. Zeabur 會自動檢測配置文件並開始建置
+
+### 3. 自動建置流程
+
+Zeabur 會依序執行：
+1. 檢測到 `.zeabur/config.json`
+2. 安裝 Node.js 18 和 Python 3.11 runtime
+3. 執行建置命令：
+   - `npm install` - 安裝 Node.js 依賴
+   - `npm run build:css` - 建置 Tailwind CSS
+   - `pip3 install twscrape` - 安裝 twscrape
+4. 執行啟動命令：`npm start`
+
+### 4. 環境變數（可選）
+
+可以在 Zeabur 專案設定中加入：
+- `PORT` - 伺服器端口（Zeabur 會自動設定）
+- `NODE_ENV=production` - 生產環境標記
+
+## 驗證部署
+
+部署完成後：
+
+1. 訪問 Zeabur 提供的網址
+2. 檢查主頁是否正常運作
+3. 訪問 `/settings.html` 檢查 twscrape 是否已安裝
+4. 在「已新增的帳號」區域，如果看到空列表（而非警告訊息），表示 twscrape 已成功安裝
+
+## 疑難排解
+
+### twscrape 未安裝
+
+如果部署後 twscrape 未安裝，可能原因：
+1. Zeabur 未啟用 Python runtime
+2. Python 版本不相容
+
+**解決方法：**
+1. 確認 `.zeabur/config.json` 中有 `"python": "3.11"`
+2. 或在 Zeabur 儀表板手動啟用 Python service
+3. 檢查建置日誌中 twscrape 的安裝輸出
+
+### 查看建置日誌
+
+在 Zeabur 專案頁面：
+1. 點擊 Deployments
+2. 選擇最新的部署
+3. 查看 Build Logs
+4. 搜尋 "twscrape" 查看安裝狀態
+
+## 替代方案
+
+如果自動安裝失敗，可以使用 Zeabur 的 Shell 功能手動安裝：
+
+1. 在 Zeabur 專案中開啟 Shell
+2. 執行：
+   ```bash
+   pip3 install twscrape
+   ```
+
+## 更新部署
+
+每次 push 新的 commit 到倉庫，Zeabur 會自動重新建置和部署。
+
+## 參考連結
+
+- [Zeabur 文件](https://zeabur.com/docs)
+- [Zeabur Python Support](https://zeabur.com/docs/deploy/python)
+- [twscrape GitHub](https://github.com/vladkens/twscrape)
+
