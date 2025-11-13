@@ -38,14 +38,25 @@ fi
 # 安裝 twscrape
 echo ""
 echo "安裝 twscrape..."
-$PIP_CMD install twscrape
+
+# 嘗試使用 --break-system-packages（Python 3.11+）
+$PIP_CMD install --break-system-packages twscrape 2>/dev/null
 
 if [ $? -eq 0 ]; then
-    echo "✓ twscrape 安裝成功"
+    echo "✓ twscrape 安裝成功（使用 --break-system-packages）"
 else
-    echo "✗ twscrape 安裝失敗"
-    echo "請手動執行：$PIP_CMD install twscrape"
-    exit 1
+    # 嘗試一般安裝
+    $PIP_CMD install twscrape
+    if [ $? -eq 0 ]; then
+        echo "✓ twscrape 安裝成功"
+    else
+        echo "✗ twscrape 安裝失敗"
+        echo "請嘗試手動執行："
+        echo "  $PIP_CMD install --break-system-packages twscrape"
+        echo "或"
+        echo "  $PIP_CMD install --user twscrape"
+        exit 1
+    fi
 fi
 
 # 驗證 twscrape 安裝

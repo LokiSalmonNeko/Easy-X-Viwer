@@ -49,15 +49,26 @@ if %errorlevel% equ 0 (
 REM 安裝 twscrape
 echo.
 echo 安裝 twscrape...
-%PIP_CMD% install twscrape
+
+REM 嘗試使用 --break-system-packages（Python 3.11+）
+%PIP_CMD% install --break-system-packages twscrape 2>nul
 
 if %errorlevel% equ 0 (
-    echo ✓ twscrape 安裝成功
+    echo ✓ twscrape 安裝成功（使用 --break-system-packages）
 ) else (
-    echo ✗ twscrape 安裝失敗
-    echo 請手動執行：%PIP_CMD% install twscrape
-    pause
-    exit /b 1
+    REM 嘗試一般安裝
+    %PIP_CMD% install twscrape
+    if %errorlevel% equ 0 (
+        echo ✓ twscrape 安裝成功
+    ) else (
+        echo ✗ twscrape 安裝失敗
+        echo 請嘗試手動執行：
+        echo   %PIP_CMD% install --break-system-packages twscrape
+        echo 或
+        echo   %PIP_CMD% install --user twscrape
+        pause
+        exit /b 1
+    )
 )
 
 REM 驗證 twscrape 安裝
