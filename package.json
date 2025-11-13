@@ -7,6 +7,7 @@
     "build:css": "tailwindcss -i ./src/input.css -o ./public/css/tailwind.css --minify",
     "setup": "bash setup.sh || setup.bat",
     "setup:twscrape": "pip3 install twscrape || pip install twscrape",
+    "postinstall": "npm run setup:twscrape || echo '⚠️  twscrape 安裝失敗（需要 Python），備用載入功能將無法使用'",
     "start": "node server.js",
     "dev": "node server.js",
     "prestart": "npm run build:css"
