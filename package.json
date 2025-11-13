@@ -5,6 +5,8 @@
   "main": "server.js",
   "scripts": {
     "build:css": "tailwindcss -i ./src/input.css -o ./public/css/tailwind.css --minify",
+    "setup": "bash setup.sh || setup.bat",
+    "setup:twscrape": "pip3 install twscrape || pip install twscrape",
     "start": "node server.js",
     "dev": "node server.js",
     "prestart": "npm run build:css"

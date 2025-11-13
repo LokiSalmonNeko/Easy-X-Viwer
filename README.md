@@ -30,21 +30,60 @@
 
 ## 安裝步驟
 
-### 1. 安裝依賴
+### 快速安裝（推薦）
+
+執行自動安裝腳本：
+
+**macOS / Linux：**
+```bash
+bash setup.sh
+npm install
+npm start
+```
+
+**Windows：**
+```batch
+setup.bat
+npm install
+npm start
+```
+
+安裝腳本會自動：
+- 檢查 Python 環境
+- 安裝 twscrape
+- 驗證安裝結果
+
+### 手動安裝
+
+#### 1. 安裝 Node.js 依賴
 
 ```bash
 npm install
 ```
 
-### 2. 建置 CSS（首次執行或修改樣式後）
+#### 2. 安裝 twscrape（選用，用於備用載入功能）
+
+```bash
+# 使用 npm script
+npm run setup:twscrape
+
+# 或直接使用 pip
+pip install twscrape
+# 或
+pip3 install twscrape
+```
+
+**注意**：需要 Python 3.8 或更新版本
+
+#### 3. 建置 CSS（首次執行或修改樣式後）
 
 ```bash
 npm run build:css
 ```
 
-**注意**：執行 `npm start` 時會自動執行 `build:css`，但如果您想手動建置，可以使用此命令。
+**注意**：執行 `npm start` 時會自動執行 `build:css`
 
-### 3. 啟動伺服器
+#### 4. 啟動伺服器
 
 ```bash
 npm start
@@ -52,7 +91,7 @@ npm start
 
 伺服器將運行於 `http://localhost:3000`
 
-### 3. 訪問應用
+#### 5. 訪問應用
 
 開啟瀏覽器訪問：
 - 首頁：`http://localhost:3000/`
@@ -65,6 +104,8 @@ project/
 ├── server.js              # Express 後端主程式
 ├── records.json           # 資料儲存（啟動時自動建立）
 ├── package.json           # 專案依賴與腳本
+├── setup.sh               # 自動安裝腳本 (macOS/Linux)
+├── setup.bat              # 自動安裝腳本 (Windows)
 ├── public/                # 靜態檔案目錄
 │   ├── index.html         # 主頁面（新增紀錄 + 所有紀錄）
 │   ├── settings.html      # twscrape 設定頁面
@@ -79,8 +120,7 @@ project/
 │   ├── validators.js      # URL 驗證工具
 │   └── twscrapeHelper.js  # twscrape 輔助模組
 ├── tailwind.config.js     # Tailwind CSS 配置檔案
-├── README.md              # 專案說明文件
-└── TWSCRAPE_SETUP.md      # twscrape 設定指南
+└── README.md              # 專案說明文件
 ```
 
 ## API 文件
@@ -297,8 +337,13 @@ project/
 1. 將專案推送到 Git 倉庫
 2. 在 Zeabur 中建立新專案
 3. 連接 Git 倉庫
-4. 設定啟動命令：`npm start`
-5. 設定環境變數 `PORT`（可選，預設為 3000）
+4. 設定建置命令：`npm install && npm run build:css`
+5. 設定啟動命令：`npm start`
+6. 設定環境變數 `PORT`（可選，預設為 3000）
+
+**啟用 twscrape 功能（選用）：**
+- 在 Zeabur 中啟用 Python Runtime
+- 修改啟動命令為：`pip3 install twscrape && npm start`
 
 ### Docker
 
@@ -306,14 +351,25 @@ project/
 
 ```dockerfile
 FROM node:18-alpine
+
+# 安裝 Python 和 pip（用於 twscrape）
+RUN apk add --no-cache python3 py3-pip
+
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
+
 COPY . .
 RUN npm run build:css
+
+# 安裝 twscrape（選用）
+RUN pip3 install twscrape || echo "twscrape 安裝失敗（可選功能）"
+
 EXPOSE 3000
 CMD ["npm", "start"]
 ```
+
+**注意**：如果不需要 twscrape 功能，可以移除 Python 和 twscrape 安裝步驟以減小映像大小。
 
 建立並執行：
 
@@ -367,18 +423,35 @@ npm start
 
 ### 安裝 twscrape
 
+**自動安裝（推薦）：**
+
+執行專案根目錄的安裝腳本：
+```bash
+# macOS / Linux
+bash setup.sh
+
+# Windows
+setup.bat
+
+# 或使用 npm script
+npm run setup:twscrape
+```
+
+**手動安裝：**
+
 1. 確保已安裝 Python 3.8 或更新版本
 
 2. 安裝 twscrape：
-
-```bash
-pip install twscrape
-```
+   ```bash
+   pip install twscrape
+   # 或
+   pip3 install twscrape
+   ```
 
 ### 設定帳號
 
 1. 訪問設定頁面：`http://localhost:3000/settings.html`
-2. 新增 Twitter 帳號（建議使用免洗帳號）
+2. **新增 Twitter 帳號（建議使用免洗帳號）**
 3. 執行登入操作
 4. 完成後即可使用備用載入功能
 
