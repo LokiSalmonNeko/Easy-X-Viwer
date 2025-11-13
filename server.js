@@ -29,13 +29,24 @@ initializeRecordsFile().catch(err => {
 });
 
 /**
+ * 標準化貼文 URL（將 x.com 轉換為 twitter.com）
+ * @param {string} url - X 貼文網址
+ * @returns {string} 標準化後的 URL
+ */
+function normalizeTweetUrl(url) {
+  return url.replace(/^https?:\/\/x\.com\//, 'https://twitter.com/');
+}
+
+/**
  * 從 X oEmbed API 獲取貼文標題
  * @param {string} url - X 貼文網址
  * @returns {Promise<string>} 貼文標題
  */
 async function fetchTweetTitle(url) {
   return new Promise((resolve, reject) => {
-    const encodedUrl = encodeURIComponent(url);
+    // 標準化 URL（oEmbed 對 twitter.com 支援更穩定）
+    const normalizedUrl = normalizeTweetUrl(url);
+    const encodedUrl = encodeURIComponent(normalizedUrl);
     const apiUrl = `https://publish.twitter.com/oembed?url=${encodedUrl}`;
     
     https.get(apiUrl, (res) => {

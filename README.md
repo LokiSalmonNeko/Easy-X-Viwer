@@ -12,6 +12,7 @@
 - ✏️ 編輯與刪除紀錄
 - 💾 使用 JSON 檔案儲存，無需資料庫
 - 🎬 使用 X 官方 embed 播放器播放影片（不下載影片）
+- 🔄 自動標準化 URL（支援 x.com 和 twitter.com）
 
 ## 技術棧
 
@@ -190,11 +191,13 @@ project/
 ]
 ```
 
-## URL 驗證
+## URL 驗證與標準化
 
 支援以下格式的 X (Twitter) 貼文網址：
 - `https://x.com/username/status/1234567890`
 - `https://twitter.com/username/status/1234567890`
+
+後端會自動將 `x.com` URL 標準化為 `twitter.com` 格式，以確保與 X oEmbed API 的最佳相容性。
 
 ## 功能說明
 
@@ -260,9 +263,21 @@ npm start
 
 - 首次啟動時會自動建立 `records.json` 檔案
 - 所有資料儲存在本地 JSON 檔案中，請定期備份
-- 使用 X 官方 embed 播放器，不會下載或儲存影片檔案
+- 使用 X 官方 `twttr.widgets.createTweet()` API 來嵌入貼文，不會下載或儲存影片檔案
 - 標題會自動從 X oEmbed API 獲取，如果獲取失敗會使用預設標題
+- URL 會自動標準化為 `twitter.com` 格式以確保 oEmbed API 相容性
 - CORS 已啟用，允許跨域請求
+
+### 貼文無法顯示的可能原因
+
+以下情況是 X 本身的限制，不是應用程式的問題：
+- 貼文已被刪除
+- 發文帳號設為私密或受限制
+- 內容被標記為敏感內容
+- 貼文受地區限制
+- X API 暫時無法使用
+
+遇到這些情況時，應用程式會顯示友好的錯誤訊息和連結，讓您可以在 X 上直接查看。
 
 ## 授權
 

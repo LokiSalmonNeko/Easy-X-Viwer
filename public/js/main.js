@@ -177,6 +177,16 @@ function renderRecord(record) {
 }
 
 /**
+ * 從 URL 中提取 Tweet ID
+ * @param {string} url - 貼文網址
+ * @returns {string|null} Tweet ID 或 null
+ */
+function extractTweetId(url) {
+  const match = url.match(/status\/(\d+)/);
+  return match ? match[1] : null;
+}
+
+/**
  * 建立 Twitter embed
  * @param {string} url - 貼文網址
  * @param {string} id - 容器 ID
@@ -188,61 +198,86 @@ function createTweetEmbed(url, id) {
     return;
   }
 
-  // 清空容器（避免重複載入）
+  // 清空容器
   container.innerHTML = '';
 
-  // 建立 blockquote 元素
-  const blockquote = document.createElement('blockquote');
-  blockquote.className = 'twitter-tweet';
-  blockquote.setAttribute('data-theme', 'light');
-  
-  const link = document.createElement('a');
-  link.href = url;
-  link.textContent = url; // 暫時顯示 URL，載入後會被替換
-  
-  blockquote.appendChild(link);
-  container.appendChild(blockquote);
+  // 提取 Tweet ID
+  const tweetId = extractTweetId(url);
+  if (!tweetId) {
+    console.error(`無法從 URL 提取 Tweet ID: ${url}`);
+    container.innerHTML = `<div class="p-4 border border-gray-300 rounded bg-yellow-50">
+      <p class="text-sm text-gray-600 mb-2">無效的貼文 URL</p>
+      <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">${url}</a>
+    </div>`;
+    return;
+  }
 
-  // 等待 widgets.js 載入並渲染
+  // 顯示載入中訊息
+  container.innerHTML = '<p class="text-gray-500 text-sm">載入貼文中...</p>';
+
+  // 等待 widgets.js 載入
   let attempts = 0;
-  const maxAttempts = 50; // 最多等待 10 秒 (50 * 200ms)
+  const maxAttempts = 50; // 最多等待 10 秒
   
-  function waitAndLoad() {
+  function waitAndCreate() {
     attempts++;
     
-    if (window.twttr && window.twttr.widgets && typeof window.twttr.widgets.load === 'function') {
-      // widgets.js 已載入，開始渲染
+    if (window.twttr && window.twttr.widgets && typeof window.twttr.widgets.createTweet === 'function') {
+      // widgets.js 已載入，使用 createTweet 建立 embed
+      container.innerHTML = ''; // 清除載入訊息
+      
       try {
-        console.log(`開始載入 Twitter embed: ${id}, URL: ${url}`);
-        window.twttr.widgets.load(container).then(() => {
-          console.log(`✓ Twitter embed 載入成功: ${id}`);
+        console.log(`開始載入 Tweet: ${tweetId}`);
+        
+        window.twttr.widgets.createTweet(
+          tweetId,
+          container,
+          {
+            align: 'center',
+            theme: 'light',
+            conversation: 'none', // 不顯示回覆
+            cards: 'visible'      // 顯示卡片（包含影片）
+          }
+        ).then(element => {
+          if (element) {
+            console.log(`✓ Tweet 載入成功: ${tweetId}`);
+          } else {
+            // createTweet 回傳 undefined = 貼文無法嵌入
+            console.warn(`⚠ Tweet 無法嵌入: ${tweetId}（可能被刪除、鎖帳或限制）`);
+            container.innerHTML = `<div class="p-4 border border-gray-300 rounded bg-gray-50">
+              <p class="text-sm text-gray-600 mb-2">此貼文無法嵌入（可能被刪除、設為私密或受地區限制）</p>
+              <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">在 X 上查看</a>
+            </div>`;
+          }
         }).catch(err => {
-          console.error(`✗ 載入 Twitter embed 失敗 (${id}):`, err);
-          // 如果載入失敗，顯示連結
-          container.innerHTML = `<div class="p-4 border border-gray-300 rounded">
-            <p class="text-sm text-gray-600 mb-2">無法載入貼文預覽</p>
-            <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">${url}</a>
+          console.error(`✗ Tweet 載入失敗: ${tweetId}`, err);
+          container.innerHTML = `<div class="p-4 border border-gray-300 rounded bg-red-50">
+            <p class="text-sm text-gray-600 mb-2">載入失敗</p>
+            <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">在 X 上查看</a>
           </div>`;
         });
       } catch (err) {
-        console.error(`渲染 Twitter embed 時發生錯誤 (${id}):`, err);
-        container.innerHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">${url}</a>`;
+        console.error(`渲染 Tweet 時發生錯誤: ${tweetId}`, err);
+        container.innerHTML = `<div class="p-4 border border-gray-300 rounded bg-red-50">
+          <p class="text-sm text-gray-600 mb-2">渲染錯誤</p>
+          <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">在 X 上查看</a>
+        </div>`;
       }
     } else if (attempts < maxAttempts) {
       // widgets.js 還沒載入，繼續等待
-      setTimeout(waitAndLoad, 200);
+      setTimeout(waitAndCreate, 200);
     } else {
-      // 超時，顯示連結
-      console.warn(`Twitter widgets.js 載入超時 (${id})，顯示連結`);
-      container.innerHTML = `<div class="p-4 border border-gray-300 rounded">
+      // 超時
+      console.warn(`Twitter widgets.js 載入超時`);
+      container.innerHTML = `<div class="p-4 border border-gray-300 rounded bg-yellow-50">
         <p class="text-sm text-gray-600 mb-2">載入超時</p>
-        <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">${url}</a>
+        <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">在 X 上查看</a>
       </div>`;
     }
   }
 
-  // 開始等待並載入
-  waitAndLoad();
+  // 開始等待並建立
+  waitAndCreate();
 }
 
 /**
