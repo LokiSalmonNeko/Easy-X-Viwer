@@ -106,10 +106,12 @@ async function loadAllRecords(searchQuery = '') {
 
       allRecordsContainer.innerHTML = records.map(record => renderRecord(record)).join('');
       
-      // 動態建立 Twitter embed
-      records.forEach(record => {
-        createTweetEmbed(record.url, record.id);
-      });
+      // 動態建立 Twitter embed（使用 setTimeout 確保 DOM 已更新）
+      setTimeout(() => {
+        records.forEach(record => {
+          createTweetEmbed(record.url, record.id);
+        });
+      }, 100);
     } else {
       allRecordsContainer.innerHTML = '<p class="text-red-500 text-center py-8">載入失敗</p>';
     }
@@ -181,6 +183,9 @@ function createTweetEmbed(url, id) {
   const container = document.getElementById(`tweet-${id}`);
   if (!container) return;
 
+  // 清空容器（避免重複載入）
+  container.innerHTML = '';
+
   const blockquote = document.createElement('blockquote');
   blockquote.className = 'twitter-tweet';
   const link = document.createElement('a');
@@ -188,9 +193,39 @@ function createTweetEmbed(url, id) {
   blockquote.appendChild(link);
   container.appendChild(blockquote);
 
-  // 載入 Twitter widget
-  if (window.twttr && window.twttr.widgets) {
-    window.twttr.widgets.load(container);
+  // 確保 Twitter widgets 已載入後再載入 embed
+  function loadEmbed() {
+    if (window.twttr && window.twttr.widgets) {
+      window.twttr.widgets.load(container).catch(err => {
+        console.error('載入 Twitter embed 失敗:', err);
+      });
+    } else {
+      // 如果 widgets 還沒載入，等待一下再試
+      setTimeout(loadEmbed, 100);
+    }
+  }
+
+  // 使用 twttr.ready 確保 widgets.js 已載入
+  if (window.twttr && window.twttr.ready) {
+    window.twttr.ready(loadEmbed);
+  } else {
+    // 如果 twttr 還沒定義，等待 widgets.js 載入
+    const checkTwttr = setInterval(() => {
+      if (window.twttr) {
+        clearInterval(checkTwttr);
+        if (window.twttr.ready) {
+          window.twttr.ready(loadEmbed);
+        } else {
+          loadEmbed();
+        }
+      }
+    }, 100);
+
+    // 10 秒後停止檢查（避免無限等待）
+    setTimeout(() => {
+      clearInterval(checkTwttr);
+      loadEmbed();
+    }, 10000);
   }
 }
 
@@ -357,12 +392,17 @@ editModal.addEventListener('click', (e) => {
 
 // 頁面載入時載入所有紀錄
 document.addEventListener('DOMContentLoaded', () => {
-  loadAllRecords();
-  
   // 確保 Twitter widgets 已載入
-  if (window.twttr && window.twttr.ready) {
-    window.twttr.ready(() => {
-      window.twttr.widgets.load();
-    });
+  function initApp() {
+    if (window.twttr && window.twttr.ready) {
+      window.twttr.ready(() => {
+        loadAllRecords();
+      });
+    } else {
+      // 如果 twttr 還沒載入，等待一下
+      setTimeout(initApp, 100);
+    }
   }
+  
+  initApp();
 });
