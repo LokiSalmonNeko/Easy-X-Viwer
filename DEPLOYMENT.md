@@ -1,69 +1,96 @@
 # Zeabur 部署指南
 
-## 自動部署配置
+## 推薦方式：使用 Docker 部署
 
-本專案已包含 Zeabur 配置文件，會自動處理所有部署步驟，包括 twscrape 的安裝。
+由於 Zeabur 的 Node.js runtime 預設不包含 Python，**強烈建議使用 Docker 部署**以確保 twscrape 功能正常運作。
 
-## 配置文件
+## 為什麼需要 Docker？
 
-### `.zeabur/config.json`
-專案使用 Zeabur 配置文件來自動化部署流程：
-
-```json
-{
-  "build": {
-    "commands": [
-      "npm install",
-      "npm run build:css",
-      "pip3 install twscrape || pip install twscrape || echo 'twscrape 為選用功能'"
-    ]
-  },
-  "start": {
-    "command": "npm start"
-  },
-  "runtime": {
-    "node": "18",
-    "python": "3.11"
-  }
-}
+從建置日誌可以看到：
+```
+sh: 1: pip3: not found
+sh: 1: pip: not found
+⚠️ twscrape 安裝失敗（需要 Python）
 ```
 
-這個配置確保：
-- ✅ 自動安裝 Node.js 依賴
-- ✅ 自動建置 Tailwind CSS
-- ✅ **自動安裝 twscrape**（如果 Python 可用）
-- ✅ 使用 Node 18 和 Python 3.11 runtime
+這是因為：
+- Zeabur 的 Node.js runtime 只包含 Node.js
+- 沒有 Python 和 pip
+- 因此無法安裝 twscrape
+
+**解決方案**：使用 Docker，可以在同一個容器中同時包含 Node.js 和 Python。
+
+## Docker 部署配置
+
+### `Dockerfile`
+專案已包含完整的 Dockerfile：
+
+```dockerfile
+FROM node:18-alpine
+
+# 安裝 Python 和 pip（用於 twscrape）
+RUN apk add --no-cache python3 py3-pip
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build:css
+
+# 安裝 twscrape
+RUN pip3 install --break-system-packages twscrape || pip3 install twscrape
+
+# 驗證安裝
+RUN twscrape --version || echo "twscrape 未正確安裝"
+
+EXPOSE 3000
+CMD ["npm", "start"]
+```
+
+這個 Dockerfile 確保：
+- ✅ 安裝 Node.js 18
+- ✅ 安裝 Python 3 和 pip
+- ✅ **自動安裝 twscrape**
+- ✅ 建置 Tailwind CSS
+- ✅ 驗證 twscrape 安裝
 
 ## 部署步驟
 
-### 1. 推送到 Git 倉庫
+### 1. 確保包含 Dockerfile
+
+確認專案根目錄有 `Dockerfile` 檔案（已包含在專案中）。
+
+### 2. 推送到 Git 倉庫
 
 ```bash
 git add .
-git commit -m "Initial commit"
+git commit -m "Deploy with Docker and twscrape"
 git push origin main
 ```
 
-### 2. 在 Zeabur 建立專案
+### 3. 在 Zeabur 建立專案
 
 1. 登入 [Zeabur](https://zeabur.com)
 2. 點擊「Create New Project」
 3. 選擇「Import from GitHub」
 4. 選擇您的倉庫
-5. Zeabur 會自動檢測配置文件並開始建置
+5. Zeabur 會自動檢測 Dockerfile 並使用 Docker 建置
 
-### 3. 自動建置流程
+### 4. 自動建置流程（Docker）
 
 Zeabur 會依序執行：
-1. 檢測到 `.zeabur/config.json`
-2. 安裝 Node.js 18 和 Python 3.11 runtime
-3. 執行建置命令：
-   - `npm install` - 安裝 Node.js 依賴
-   - `npm run build:css` - 建置 Tailwind CSS
-   - `pip3 install twscrape` - 安裝 twscrape
-4. 執行啟動命令：`npm start`
+1. ✅ 檢測到 `Dockerfile`
+2. ✅ 使用 Docker 建置映像：
+   - 安裝 Node.js 18
+   - 安裝 Python 3 和 pip
+   - 執行 `npm install`
+   - 執行 `npm run build:css`
+   - **執行 `pip3 install twscrape`**
+   - 驗證 twscrape 安裝
+3. ✅ 部署容器
+4. ✅ 啟動應用程式
 
-### 4. 環境變數（可選）
+### 5. 環境變數（可選）
 
 可以在 Zeabur 專案設定中加入：
 - `PORT` - 伺服器端口（Zeabur 會自動設定）

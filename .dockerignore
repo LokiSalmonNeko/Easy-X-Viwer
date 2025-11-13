@@ -1,0 +1,13 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.DS_Store
+*.md
+!README.md
+records.json
+*.db
+public/css/tailwind.css
+.env
+.env.local
+

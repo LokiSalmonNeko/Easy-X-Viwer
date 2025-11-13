@@ -337,76 +337,88 @@ project/
 
 ## 部署
 
-### Zeabur（一鍵部署）
+### Zeabur（推薦使用 Docker）
 
 [![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/referral?referralCode=LokiSalmonNeko&utm_source=LokiSalmonNeko&utm_campaign=oss)
 
-專案已包含完整的 Zeabur 配置文件，**會自動安裝 twscrape**：
+**重要**：Zeabur 的 Node.js runtime 預設不包含 Python，因此 **建議使用 Docker 部署** 以確保 twscrape 正常運作。
 
-#### 自動部署流程
+#### 方法一：使用 Docker 部署（推薦）✅
 
-1. 點擊上方的「Deploy on Zeabur」按鈕，或
-2. 手動部署：
-   - 將專案推送到 Git 倉庫
-   - 在 Zeabur 中建立新專案並連接倉庫
+專案已包含 `Dockerfile`，Zeabur 會自動檢測並使用 Docker 建置：
 
-3. Zeabur 會自動執行（透過 `.zeabur/config.json`）：
-   - ✅ 安裝 Node.js 18 runtime
-   - ✅ 安裝 Python 3.11 runtime
-   - ✅ 執行 `npm install`
-   - ✅ 執行 `npm run build:css`
-   - ✅ **執行 `pip3 install twscrape`**（自動安裝）
-   - ✅ 啟動伺服器
+1. 將專案推送到 Git 倉庫（包含 Dockerfile）
+2. 在 Zeabur 中建立新專案並連接倉庫
+3. Zeabur 會自動：
+   - 檢測到 Dockerfile
+   - 使用 Docker 建置（包含 Python 和 twscrape）
+   - 部署應用程式
 
-#### 配置文件說明
+**Docker 建置會自動安裝**：
+- ✅ Node.js 18
+- ✅ Python 3
+- ✅ pip
+- ✅ **twscrape**（自動安裝）
+- ✅ 建置 Tailwind CSS
 
-專案包含兩個配置文件：
-- `.zeabur/config.json` - 新版配置（推薦）
-- `zbpack.json` - 舊版配置（備用）
+#### 方法二：使用 Node.js runtime（不含 twscrape）
+
+如果不需要 twscrape 備用載入功能：
+1. 刪除或重命名 `Dockerfile`
+2. Zeabur 會使用 Node.js runtime
+3. 主要功能正常運作，但無法使用備用載入
+
+#### 驗證部署
+
+部署完成後訪問：
+```
+https://your-app.zeabur.app/settings.html
+```
+
+**使用 Docker 部署**：
+- ✅ 應該看到帳號列表（twscrape 已安裝）
+
+**使用 Node.js runtime**：
+- ⚠️ 會看到「twscrape 未安裝」警告（正常，因為沒有 Python）
 
 詳細部署指南請參閱 [DEPLOYMENT.md](./DEPLOYMENT.md)
 
-#### 驗證 twscrape 安裝
+### Docker（本地部署）
 
-部署完成後，訪問 `https://your-app.zeabur.app/settings.html`：
-- 如果看到帳號列表（空的），表示 twscrape 已安裝 ✅
-- 如果看到「twscrape 未安裝」警告，表示安裝失敗 ❌
+專案已包含 `Dockerfile`，可以直接建置和執行：
 
-**注意**：
-- twscrape 安裝失敗不會影響主要功能
-- 僅備用載入功能（年齡限制貼文）無法使用
+```bash
+# 建置映像
+docker build -t easy-x-viewer .
 
-### Docker
+# 執行容器
+docker run -p 3000:3000 easy-x-viewer
 
-建立 `Dockerfile`：
+# 或使用 docker-compose（背景執行）
+docker run -d -p 3000:3000 --name easy-x-viewer easy-x-viewer
+```
+
+**Docker 映像包含**：
+- ✅ Node.js 18
+- ✅ Python 3 + pip
+- ✅ twscrape（已預先安裝）
+- ✅ 所有必要依賴
+
+訪問 `http://localhost:3000` 即可使用。
+
+**不含 twscrape 的輕量版本**：
+
+如果不需要備用載入功能，可以使用簡化版 Dockerfile：
 
 ```dockerfile
 FROM node:18-alpine
-
-# 安裝 Python 和 pip（用於 twscrape）
-RUN apk add --no-cache python3 py3-pip
-
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
-
 COPY . .
 RUN npm run build:css
-
-# 安裝 twscrape（選用）
-RUN pip3 install twscrape || echo "twscrape 安裝失敗（可選功能）"
-
 EXPOSE 3000
 CMD ["npm", "start"]
-```
-
-**注意**：如果不需要 twscrape 功能，可以移除 Python 和 twscrape 安裝步驟以減小映像大小。
-
-建立並執行：
-
-```bash
-docker build -t easy-x-viewer .
-docker run -p 3000:3000 easy-x-viewer
 ```
 
 ### 本地部署
