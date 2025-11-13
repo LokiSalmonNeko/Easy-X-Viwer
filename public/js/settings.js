@@ -35,12 +35,10 @@ async function checkInstallStatus() {
     const result = await response.json();
 
     if (!result.installed) {
-      // 在帳號列表區域顯示警告
-      accountsListDiv.innerHTML = `<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <p class="text-yellow-800 font-medium mb-2">⚠️ twscrape 未安裝</p>
-        <p class="text-sm text-yellow-700 mb-3">備用載入功能需要 twscrape。請執行：</p>
-        <pre class="bg-yellow-900 text-yellow-100 p-2 rounded text-sm">pip install twscrape</pre>
-        <p class="text-xs text-yellow-600 mt-2">或執行專案根目錄的 setup.sh / setup.bat 腳本</p>
+      // 在帳號列表區域顯示簡潔訊息
+      accountsListDiv.innerHTML = `<div class="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+        <p class="text-gray-600 text-sm">twscrape 服務未啟用</p>
+        <p class="text-gray-500 text-xs mt-2">備用載入功能無法使用</p>
       </div>`;
     }
   } catch (error) {
