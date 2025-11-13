@@ -9,6 +9,7 @@ const path = require('path');
 const https = require('https');
 const { readRecords, writeRecords, generateId, initializeRecordsFile } = require('./src/recordStore');
 const { isValidXUrl } = require('./src/validators');
+const twscrapeHelper = require('./src/twscrapeHelper');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -319,6 +320,151 @@ app.delete('/api/records/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       error: '伺服器錯誤：無法刪除紀錄'
+    });
+  }
+});
+
+/**
+ * POST /api/twscrape/tweet - 使用 twscrape 獲取貼文
+ */
+app.post('/api/twscrape/tweet', async (req, res) => {
+  try {
+    const { url } = req.body;
+
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL 為必填欄位'
+      });
+    }
+
+    // 檢查 twscrape 是否已安裝
+    const isInstalled = await twscrapeHelper.checkTwscrapeInstalled();
+    if (!isInstalled) {
+      return res.status(503).json({
+        success: false,
+        error: 'twscrape 未安裝。請執行: pip install twscrape'
+      });
+    }
+
+    // 提取 Tweet ID
+    const tweetId = twscrapeHelper.extractTweetId(url);
+    if (!tweetId) {
+      return res.status(400).json({
+        success: false,
+        error: '無效的貼文 URL'
+      });
+    }
+
+    // 使用 twscrape 獲取貼文
+    const tweet = await twscrapeHelper.getTweetDetails(tweetId);
+
+    res.json({
+      success: true,
+      data: tweet
+    });
+  } catch (error) {
+    console.error('twscrape 獲取貼文失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || '無法獲取貼文資料'
+    });
+  }
+});
+
+/**
+ * POST /api/twscrape/accounts - 新增 Twitter 帳號
+ */
+app.post('/api/twscrape/accounts', async (req, res) => {
+  try {
+    const { username, password, email, emailPassword } = req.body;
+
+    if (!username || !password || !email) {
+      return res.status(400).json({
+        success: false,
+        error: 'username、password 和 email 為必填欄位'
+      });
+    }
+
+    // 檢查 twscrape 是否已安裝
+    const isInstalled = await twscrapeHelper.checkTwscrapeInstalled();
+    if (!isInstalled) {
+      return res.status(503).json({
+        success: false,
+        error: 'twscrape 未安裝。請執行: pip install twscrape'
+      });
+    }
+
+    // 新增帳號
+    await twscrapeHelper.addAccount(username, password, email, emailPassword);
+
+    res.json({
+      success: true,
+      message: '帳號新增成功，請執行登入操作'
+    });
+  } catch (error) {
+    console.error('新增帳號失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || '無法新增帳號'
+    });
+  }
+});
+
+/**
+ * POST /api/twscrape/login - 登入 twscrape 帳號
+ */
+app.post('/api/twscrape/login', async (req, res) => {
+  try {
+    const isInstalled = await twscrapeHelper.checkTwscrapeInstalled();
+    if (!isInstalled) {
+      return res.status(503).json({
+        success: false,
+        error: 'twscrape 未安裝'
+      });
+    }
+
+    await twscrapeHelper.loginAccounts();
+
+    res.json({
+      success: true,
+      message: '帳號登入成功'
+    });
+  } catch (error) {
+    console.error('登入失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || '無法登入帳號'
+    });
+  }
+});
+
+/**
+ * GET /api/twscrape/accounts - 獲取帳號列表
+ */
+app.get('/api/twscrape/accounts', async (req, res) => {
+  try {
+    const isInstalled = await twscrapeHelper.checkTwscrapeInstalled();
+    if (!isInstalled) {
+      return res.json({
+        success: true,
+        data: [],
+        installed: false
+      });
+    }
+
+    const accounts = await twscrapeHelper.listAccounts();
+
+    res.json({
+      success: true,
+      data: accounts,
+      installed: true
+    });
+  } catch (error) {
+    console.error('獲取帳號列表失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || '無法獲取帳號列表'
     });
   }
 });

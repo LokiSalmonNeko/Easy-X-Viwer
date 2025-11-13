@@ -245,8 +245,13 @@ function createTweetEmbed(url, id) {
             // createTweet 回傳 undefined = 貼文無法嵌入
             console.warn(`⚠ Tweet 無法嵌入: ${tweetId}（可能被刪除、鎖帳或限制）`);
             container.innerHTML = `<div class="p-4 border border-gray-300 rounded bg-gray-50">
-              <p class="text-sm text-gray-600 mb-2">此貼文無法嵌入（可能被刪除、設為私密或受地區限制）</p>
-              <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">在 X 上查看</a>
+              <p class="text-sm text-gray-600 mb-3">此貼文無法嵌入（可能被刪除、設為私密、年齡限制或受地區限制）</p>
+              <div class="flex gap-2">
+                <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">在 X 上查看</a>
+                <button onclick="tryTwscrapeLoad('${url}', '${id}')" class="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                  嘗試備用載入
+                </button>
+              </div>
             </div>`;
           }
         }).catch(err => {
@@ -400,11 +405,83 @@ function clearSearch() {
 }
 
 /**
+ * 使用 twscrape 嘗試載入貼文（備用方案）
+ * @param {string} url - 貼文網址
+ * @param {string} containerId - 容器 ID
+ */
+async function tryTwscrapeLoad(url, containerId) {
+  const container = document.getElementById(`tweet-${containerId}`);
+  if (!container) return;
+
+  container.innerHTML = '<p class="text-gray-500 text-sm p-4">正在使用備用方式載入...</p>';
+
+  try {
+    const response = await fetch('/api/twscrape/tweet', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ url })
+    });
+
+    const result = await response.json();
+
+    if (result.success && result.data) {
+      const tweet = result.data;
+      // 顯示 twscrape 載入的貼文內容
+      container.innerHTML = `<div class="border border-blue-200 rounded-lg p-4 bg-blue-50">
+        <div class="flex items-start gap-3 mb-3">
+          ${tweet.user && tweet.user.profile_image_url ? 
+            `<img src="${escapeHtml(tweet.user.profile_image_url)}" alt="avatar" class="w-12 h-12 rounded-full" />` : 
+            '<div class="w-12 h-12 rounded-full bg-gray-300"></div>'
+          }
+          <div class="flex-1">
+            <div class="font-bold">${escapeHtml(tweet.user?.name || '未知使用者')}</div>
+            <div class="text-gray-600 text-sm">@${escapeHtml(tweet.user?.username || 'unknown')}</div>
+          </div>
+        </div>
+        <div class="text-gray-800 mb-3 whitespace-pre-wrap">${escapeHtml(tweet.rawContent || tweet.text || '')}</div>
+        ${tweet.media && tweet.media.videos && tweet.media.videos.length > 0 ? 
+          `<div class="mb-3">
+            <video controls class="w-full rounded-lg max-h-96">
+              <source src="${escapeHtml(tweet.media.videos[0].url)}" type="video/mp4">
+              您的瀏覽器不支援影片播放
+            </video>
+          </div>` : ''
+        }
+        ${tweet.media && tweet.media.photos && tweet.media.photos.length > 0 ? 
+          tweet.media.photos.map(photo => 
+            `<img src="${escapeHtml(photo.url)}" alt="media" class="w-full rounded-lg mb-2" />`
+          ).join('') : ''
+        }
+        <div class="text-xs text-gray-500 border-t border-blue-200 pt-2 mt-2">
+          <span class="bg-blue-100 px-2 py-1 rounded">備用載入</span>
+          <a href="${url}" target="_blank" rel="noopener noreferrer" class="ml-2 text-blue-600 hover:underline">在 X 上查看</a>
+        </div>
+      </div>`;
+    } else {
+      throw new Error(result.error || '載入失敗');
+    }
+  } catch (error) {
+    console.error('twscrape 載入失敗:', error);
+    container.innerHTML = `<div class="p-4 border border-red-300 rounded bg-red-50">
+      <p class="text-sm text-red-600 mb-2">備用載入失敗：${escapeHtml(error.message || '未知錯誤')}</p>
+      <p class="text-xs text-gray-600 mb-3">可能需要設定 twscrape 帳號。請至設定頁面新增帳號。</p>
+      <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">在 X 上查看</a>
+    </div>`;
+  }
+}
+
+// 將函數設為全域
+window.tryTwscrapeLoad = tryTwscrapeLoad;
+
+/**
  * HTML 轉義函數
  * @param {string} text - 要轉義的文字
  * @returns {string} 轉義後的文字
  */
 function escapeHtml(text) {
+  if (!text) return '';
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Easy X Viewer - twscrape 設定</title>
+  <link href="/css/tailwind.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <!-- 標題 -->
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-800 mb-2">twscrape 設定</h1>
+      <p class="text-gray-600">管理備用載入帳號（用於年齡限制貼文）</p>
+      <nav class="mt-4">
+        <a href="/" class="text-blue-600 hover:text-blue-800 underline">返回首頁</a>
+      </nav>
+    </header>
+
+    <!-- 警告訊息 -->
+    <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-8" role="alert">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium">⚠️ 重要安全警告</h3>
+          <div class="mt-2 text-sm">
+            <p class="mb-2"><strong>強烈建議使用免洗帳號，切勿使用個人主要帳號！</strong></p>
+            <ul class="list-disc list-inside space-y-1">
+              <li>此功能使用第三方 API 抓取 X 貼文，可能違反 X 服務條款</li>
+              <li>使用的帳號可能會被限制、暫停或永久封禁</li>
+              <li>建議使用專門建立的測試帳號或臨時帳號</li>
+              <li>不要使用與個人身份相關的帳號</li>
+              <li>此功能僅供年齡限制或無法正常顯示的貼文使用</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 安裝說明 -->
+    <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+      <h2 class="text-2xl font-semibold text-gray-800 mb-4">安裝 twscrape</h2>
+      <p class="text-gray-700 mb-4">在使用此功能前，需要先安裝 twscrape：</p>
+      <pre class="bg-gray-800 text-green-400 p-4 rounded-lg overflow-x-auto mb-4"><code>pip install twscrape</code></pre>
+      <p class="text-sm text-gray-600">需要 Python 3.8 或更新版本</p>
+      <div id="installStatus" class="mt-4"></div>
+    </section>
+
+    <!-- 新增帳號表單 -->
+    <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+      <h2 class="text-2xl font-semibold text-gray-800 mb-4">新增 Twitter 帳號</h2>
+      <form id="addAccountForm" class="space-y-4">
+        <div>
+          <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
+            Twitter 使用者名稱 <span class="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            required
+            placeholder="username"
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+
+        <div>
+          <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+            密碼 <span class="text-red-500">*</span>
+          </label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            placeholder="密碼"
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+
+        <div>
+          <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+            電子郵件 <span class="text-red-500">*</span>
+          </label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            required
+            placeholder="email@example.com"
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+
+        <div>
+          <label for="emailPassword" class="block text-sm font-medium text-gray-700 mb-1">
+            電子郵件密碼（選填，用於自動驗證）
+          </label>
+          <input
+            type="password"
+            id="emailPassword"
+            name="emailPassword"
+            placeholder="電子郵件密碼"
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          <p class="text-xs text-gray-500 mt-1">如果您的郵件支援 IMAP，提供此密碼可自動接收驗證碼</p>
+        </div>
+
+        <button
+          type="submit"
+          class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+        >
+          新增帳號
+        </button>
+      </form>
+
+      <!-- 訊息提示 -->
+      <div id="message" class="mt-4 hidden"></div>
+    </section>
+
+    <!-- 登入帳號 -->
+    <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+      <h2 class="text-2xl font-semibold text-gray-800 mb-4">登入帳號</h2>
+      <p class="text-gray-700 mb-4">新增帳號後，需要執行登入操作：</p>
+      <button
+        id="loginBtn"
+        class="bg-green-600 text-white py-2 px-6 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors"
+      >
+        執行登入
+      </button>
+      <div id="loginStatus" class="mt-4"></div>
+    </section>
+
+    <!-- 帳號列表 -->
+    <section class="bg-white rounded-lg shadow-md p-6">
+      <h2 class="text-2xl font-semibold text-gray-800 mb-4">已新增的帳號</h2>
+      <div id="accountsList">
+        <p class="text-gray-500 text-center py-8">載入中...</p>
+      </div>
+      <button
+        id="refreshBtn"
+        class="mt-4 bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition-colors"
+      >
+        重新整理列表
+      </button>
+    </section>
+  </div>
+
+  <script src="/js/settings.js"></script>
+</body>
+</html>
+
