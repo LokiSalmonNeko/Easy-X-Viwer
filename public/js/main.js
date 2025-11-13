@@ -17,6 +17,7 @@ const editIdInput = document.getElementById('editId');
 const editTitleInput = document.getElementById('editTitle');
 const editTagsInput = document.getElementById('editTags');
 const editNoteInput = document.getElementById('editNote');
+const editApiTypeInput = document.getElementById('editApiType');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
 
 let currentSearchQuery = '';
@@ -49,6 +50,7 @@ async function addRecord() {
   const url = formData.get('url').trim();
   const tags = formData.get('tags').trim();
   const note = formData.get('note').trim();
+  const apiType = formData.get('apiType') || 'embed';
 
   try {
     const response = await fetch('/api/records', {
@@ -59,7 +61,8 @@ async function addRecord() {
       body: JSON.stringify({
         url,
         tags,
-        note
+        note,
+        apiType
       })
     });
 
@@ -106,13 +109,13 @@ async function loadAllRecords(searchQuery = '') {
 
       allRecordsContainer.innerHTML = records.map(record => renderRecord(record)).join('');
       
-      // 動態建立 Twitter embed（使用 requestAnimationFrame 確保 DOM 已更新）
+      // 根據 apiType 載入貼文
       requestAnimationFrame(() => {
         setTimeout(() => {
           records.forEach(record => {
-            createTweetEmbed(record.url, record.id);
+            loadTweetByType(record);
           });
-        }, 300); // 給 widgets.js 更多時間載入
+        }, 300);
       });
     } else {
       allRecordsContainer.innerHTML = '<p class="text-red-500 text-center py-8">載入失敗</p>';
@@ -133,6 +136,12 @@ function renderRecord(record) {
     ? `<h3 class="text-lg font-semibold text-gray-800 mb-2">${escapeHtml(record.title)}</h3>`
     : '';
 
+  const apiTypeBadge = record.apiType === 'twscrape' 
+    ? '<span class="inline-block bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">twscrape</span>'
+    : record.apiType === 'auto'
+    ? '<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">自動</span>'
+    : '<span class="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">官方 Embed</span>';
+
   const tagsHtml = record.tags && record.tags.length > 0
     ? record.tags.map(tag => 
         `<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full mr-1">${escapeHtml(tag)}</span>`
@@ -147,8 +156,11 @@ function renderRecord(record) {
 
   return `
     <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow" data-record-id="${record.id}">
-      ${titleHtml}
-      <div class="mb-3" id="tweet-${record.id}"></div>
+      <div class="flex justify-between items-start mb-2">
+        ${titleHtml}
+        ${apiTypeBadge}
+      </div>
+      <div class="mb-3" id="tweet-${record.id}" data-api-type="${record.apiType || 'embed'}"></div>
       <div class="mt-3">
         <div class="flex flex-wrap gap-2 mb-2">
           ${tagsHtml}
@@ -184,6 +196,89 @@ function renderRecord(record) {
 function extractTweetId(url) {
   const match = url.match(/status\/(\d+)/);
   return match ? match[1] : null;
+}
+
+/**
+ * 根據 apiType 載入貼文
+ * @param {Object} record - 紀錄物件
+ */
+function loadTweetByType(record) {
+  const apiType = record.apiType || 'embed';
+  
+  switch (apiType) {
+    case 'twscrape':
+      // 直接使用 twscrape 載入
+      tryTwscrapeLoad(record.url, record.id);
+      break;
+    case 'auto':
+      // 嘗試 embed，失敗時自動切換到 twscrape
+      createTweetEmbedWithFallback(record.url, record.id);
+      break;
+    case 'embed':
+    default:
+      // 使用官方 embed
+      createTweetEmbed(record.url, record.id);
+      break;
+  }
+}
+
+/**
+ * 建立 Tweet embed，失敗時自動使用 twscrape
+ * @param {string} url - 貼文網址
+ * @param {string} id - 容器 ID
+ */
+function createTweetEmbedWithFallback(url, id) {
+  const container = document.getElementById(`tweet-${id}`);
+  if (!container) return;
+
+  const tweetId = extractTweetId(url);
+  if (!tweetId) {
+    tryTwscrapeLoad(url, id);
+    return;
+  }
+
+  container.innerHTML = '<p class="text-gray-500 text-sm">載入貼文中...</p>';
+
+  let attempts = 0;
+  const maxAttempts = 50;
+  
+  function waitAndCreate() {
+    attempts++;
+    
+    if (window.twttr && window.twttr.widgets && typeof window.twttr.widgets.createTweet === 'function') {
+      container.innerHTML = '';
+      
+      window.twttr.widgets.createTweet(
+        tweetId,
+        container,
+        {
+          align: 'center',
+          theme: 'light',
+          conversation: 'none',
+          cards: 'visible'
+        }
+      ).then(element => {
+        if (element) {
+          console.log(`✓ Tweet 載入成功 (embed): ${tweetId}`);
+        } else {
+          // embed 失敗，自動切換到 twscrape
+          console.warn(`⚠ Embed 失敗，切換到 twscrape: ${tweetId}`);
+          tryTwscrapeLoad(url, id);
+        }
+      }).catch(err => {
+        console.error(`✗ Embed 載入失敗，切換到 twscrape: ${tweetId}`, err);
+        tryTwscrapeLoad(url, id);
+      });
+    } else if (attempts < maxAttempts) {
+      setTimeout(waitAndCreate, 200);
+    } else {
+      // 超時，切換到 twscrape
+      console.warn(`Embed 載入超時，切換到 twscrape`);
+      tryTwscrapeLoad(url, id);
+    }
+  }
+
+  waitAndCreate();
 }
 
 /**
@@ -303,6 +398,7 @@ async function editRecord(id) {
         editTitleInput.value = record.title || '';
         editTagsInput.value = record.tags ? record.tags.join(', ') : '';
         editNoteInput.value = record.note || '';
+        editApiTypeInput.value = record.apiType || 'embed';
         
         // 顯示模態框
         editModal.classList.remove('hidden');
@@ -355,6 +451,7 @@ async function saveEdit() {
   const title = editTitleInput.value.trim();
   const tags = editTagsInput.value.trim();
   const note = editNoteInput.value.trim();
+  const apiType = editApiTypeInput.value;
 
   try {
     const response = await fetch(`/api/records/${id}`, {
@@ -365,7 +462,8 @@ async function saveEdit() {
       body: JSON.stringify({
         title,
         tags,
-        note
+        note,
+        apiType
       })
     });
 

@@ -106,7 +106,7 @@ async function fetchTweetTitle(url) {
  */
 app.post('/api/records', async (req, res) => {
   try {
-    const { url, tags, note } = req.body;
+    const { url, tags, note, apiType } = req.body;
 
     // 驗證必填欄位
     if (!url) {
@@ -151,6 +151,7 @@ app.post('/api/records', async (req, res) => {
       title: title,
       tags: tagsArray,
       note: note ? String(note).trim() : '',
+      apiType: apiType || 'embed', // embed, twscrape, auto
       createdAt: new Date().toISOString()
     };
 
@@ -252,6 +253,11 @@ app.put('/api/records/:id', async (req, res) => {
     // 處理標題更新
     if (req.body.title !== undefined) {
       record.title = String(req.body.title).trim();
+    }
+
+    // 處理 apiType 更新
+    if (req.body.apiType !== undefined) {
+      record.apiType = req.body.apiType || 'embed';
     }
 
     // 處理標籤更新
