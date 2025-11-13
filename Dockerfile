@@ -18,10 +18,9 @@ COPY . .
 RUN npm run build:css
 
 # 安裝 twscrape
-RUN pip3 install --break-system-packages twscrape || pip3 install twscrape || echo "twscrape 安裝失敗（選用功能）"
-
-# 驗證 twscrape 安裝
-RUN twscrape --version || echo "twscrape 未正確安裝"
+RUN pip3 install --break-system-packages twscrape && \
+    echo "✓ twscrape 安裝成功" && \
+    (twscrape 2>&1 | head -1 || echo "已安裝 twscrape")
 
 EXPOSE 3000
 

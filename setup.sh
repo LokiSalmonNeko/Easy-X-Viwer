@@ -64,7 +64,7 @@ echo ""
 echo "驗證 twscrape 安裝..."
 if command -v twscrape &> /dev/null; then
     echo "✓ twscrape 已正確安裝"
-    twscrape --version
+    twscrape 2>&1 | head -1
 else
     echo "⚠ twscrape 命令未找到"
     echo "可能需要將 Python scripts 目錄加入 PATH"

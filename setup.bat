@@ -77,7 +77,7 @@ echo 驗證 twscrape 安裝...
 where twscrape >nul 2>nul
 if %errorlevel% equ 0 (
     echo ✓ twscrape 已正確安裝
-    twscrape --version
+    twscrape 2>&1 | findstr "usage"
 ) else (
     echo ⚠ twscrape 命令未找到
     echo 可能需要將 Python Scripts 目錄加入 PATH
