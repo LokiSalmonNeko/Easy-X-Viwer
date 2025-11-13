@@ -23,10 +23,25 @@ function extractTweetId(url) {
  */
 async function checkTwscrapeInstalled() {
   try {
-    await execAsync('twscrape --version');
+    // twscrape 不支援 --version，使用 accounts 命令檢測
+    // 如果執行成功（即使沒有帳號），表示已安裝
+    const { stderr } = await execAsync('twscrape accounts', {
+      timeout: 5000
+    });
+    
+    // 檢查是否有 "command not found" 錯誤
+    if (stderr && stderr.includes('not found')) {
+      return false;
+    }
+    
     return true;
   } catch (error) {
-    return false;
+    // 如果錯誤訊息包含 "not found"，表示未安裝
+    if (error.message && error.message.includes('not found')) {
+      return false;
+    }
+    // 其他錯誤（例如沒有帳號）也算作已安裝
+    return true;
   }
 }
 
