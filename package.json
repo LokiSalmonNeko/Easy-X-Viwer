@@ -1,0 +1,23 @@
+{
+  "name": "easy-x-viewer",
+  "version": "1.0.0",
+  "description": "輕量級 X (Twitter) 貼文影片管理 Web 應用",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "twitter",
+    "x",
+    "video",
+    "manager"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}
+
