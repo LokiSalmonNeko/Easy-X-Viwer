@@ -3,18 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Easy X Viewer - 新增影片紀錄</title>
+  <title>Easy X Viewer</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
-  <div class="container mx-auto px-4 py-8 max-w-4xl">
+  <div class="container mx-auto px-4 py-8 max-w-6xl">
     <!-- 標題 -->
     <header class="mb-8">
       <h1 class="text-3xl font-bold text-gray-800 mb-2">Easy X Viewer</h1>
       <p class="text-gray-600">管理您的 X (Twitter) 貼文影片</p>
-      <nav class="mt-4">
-        <a href="/history.html" class="text-blue-600 hover:text-blue-800 underline">查看歷史紀錄</a>
-      </nav>
     </header>
 
     <!-- 新增紀錄表單 -->
@@ -73,13 +70,125 @@
       <div id="message" class="mt-4 hidden"></div>
     </section>
 
-    <!-- 最近新增紀錄 -->
+    <!-- 搜尋與篩選 -->
+    <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">搜尋與篩選</h2>
+      <div class="flex gap-4">
+        <div class="flex-1">
+          <label for="searchInput" class="block text-sm font-medium text-gray-700 mb-1">
+            搜尋標題或標籤
+          </label>
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="輸入標題或標籤關鍵字..."
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+        <div class="flex items-end">
+          <button
+            id="searchBtn"
+            class="bg-blue-600 text-white py-2 px-6 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+          >
+            搜尋
+          </button>
+          <button
+            id="clearBtn"
+            class="ml-2 bg-gray-300 text-gray-700 py-2 px-6 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+          >
+            清除
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 所有紀錄 -->
     <section class="bg-white rounded-lg shadow-md p-6">
-      <h2 class="text-2xl font-semibold text-gray-800 mb-4">最近新增紀錄</h2>
-      <div id="recentRecords" class="space-y-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-semibold text-gray-800">所有紀錄</h2>
+        <span id="recordCount" class="text-gray-600 text-sm"></span>
+      </div>
+      <div id="allRecords" class="space-y-6">
         <p class="text-gray-500 text-center py-8">載入中...</p>
       </div>
     </section>
+  </div>
+
+  <!-- 頁尾 -->
+  <footer class="container mx-auto px-4 py-8 max-w-6xl mt-8 border-t border-gray-200">
+    <div class="flex flex-col items-center justify-center gap-4 text-center">
+      <!-- Zeabur 部署按鈕 -->
+      <div>
+        <a href="https://zeabur.com/referral?referralCode=LokiSalmonNeko&utm_source=LokiSalmonNeko&utm_campaign=oss" target="_blank" rel="noopener noreferrer">
+          <img src="https://zeabur.com/deployed-on-zeabur-light.svg" alt="Deployed on Zeabur" class="h-8" />
+        </a>
+      </div>
+      <!-- 版權聲明 -->
+      <div class="text-gray-600 text-sm">
+        © 2025 Made by 
+        <a href="https://github.com/LokiSalmonNeko/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline">
+          LokiSalmonNeko
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- 編輯模態框 -->
+  <div id="editModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+      <h3 class="text-xl font-semibold text-gray-800 mb-4">編輯紀錄</h3>
+      <form id="editForm" class="space-y-4">
+        <input type="hidden" id="editId" />
+        <div>
+          <label for="editTitle" class="block text-sm font-medium text-gray-700 mb-1">
+            標題
+          </label>
+          <input
+            type="text"
+            id="editTitle"
+            placeholder="貼文標題"
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+        <div>
+          <label for="editTags" class="block text-sm font-medium text-gray-700 mb-1">
+            標籤（逗號分隔）
+          </label>
+          <input
+            type="text"
+            id="editTags"
+            placeholder="vtuber, music, performance"
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+        <div>
+          <label for="editNote" class="block text-sm font-medium text-gray-700 mb-1">
+            備註
+          </label>
+          <textarea
+            id="editNote"
+            rows="3"
+            placeholder="這段表演很強..."
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          ></textarea>
+        </div>
+        <div class="flex gap-2">
+          <button
+            type="submit"
+            class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+          >
+            儲存
+          </button>
+          <button
+            type="button"
+            id="cancelEditBtn"
+            class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+          >
+            取消
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- X Widgets Script -->
@@ -87,4 +196,3 @@
   <script src="/js/main.js"></script>
 </body>
 </html>
-

@@ -1,12 +1,25 @@
 /**
- * 首頁邏輯
- * 處理新增紀錄表單與顯示最近新增的紀錄
+ * 主頁面邏輯
+ * 處理新增紀錄表單、顯示所有紀錄、搜尋、編輯與刪除功能
  */
 
 // DOM 元素
 const addRecordForm = document.getElementById('addRecordForm');
-const recentRecordsContainer = document.getElementById('recentRecords');
+const allRecordsContainer = document.getElementById('allRecords');
 const messageDiv = document.getElementById('message');
+const searchInput = document.getElementById('searchInput');
+const searchBtn = document.getElementById('searchBtn');
+const clearBtn = document.getElementById('clearBtn');
+const recordCountSpan = document.getElementById('recordCount');
+const editModal = document.getElementById('editModal');
+const editForm = document.getElementById('editForm');
+const editIdInput = document.getElementById('editId');
+const editTitleInput = document.getElementById('editTitle');
+const editTagsInput = document.getElementById('editTags');
+const editNoteInput = document.getElementById('editNote');
+const cancelEditBtn = document.getElementById('cancelEditBtn');
+
+let currentSearchQuery = '';
 
 /**
  * 顯示訊息提示
@@ -57,8 +70,8 @@ async function addRecord() {
       addRecordForm.reset();
       showMessage('紀錄新增成功！', 'success');
       
-      // 重新載入最近紀錄
-      loadRecentRecords();
+      // 重新載入所有紀錄
+      loadAllRecords(currentSearchQuery);
     } else {
       // 失敗：顯示錯誤訊息
       showMessage(result.error || '新增失敗', 'error');
@@ -70,33 +83,39 @@ async function addRecord() {
 }
 
 /**
- * 載入最近新增的紀錄（顯示最新 10 筆）
+ * 載入所有紀錄（可選搜尋）
+ * @param {string} searchQuery - 搜尋關鍵字
  */
-async function loadRecentRecords() {
+async function loadAllRecords(searchQuery = '') {
   try {
-    const response = await fetch('/api/records');
+    const url = searchQuery 
+      ? `/api/records?search=${encodeURIComponent(searchQuery)}`
+      : '/api/records';
+    
+    const response = await fetch(url);
     const result = await response.json();
 
     if (result.success) {
-      const records = result.data.slice(0, 10); // 只顯示最新 10 筆
+      const records = result.data;
+      recordCountSpan.textContent = `共 ${records.length} 筆紀錄`;
       
       if (records.length === 0) {
-        recentRecordsContainer.innerHTML = '<p class="text-gray-500 text-center py-8">尚無紀錄</p>';
+        allRecordsContainer.innerHTML = '<p class="text-gray-500 text-center py-8">尚無紀錄</p>';
         return;
       }
 
-      recentRecordsContainer.innerHTML = records.map(record => renderRecord(record)).join('');
+      allRecordsContainer.innerHTML = records.map(record => renderRecord(record)).join('');
       
       // 動態建立 Twitter embed
       records.forEach(record => {
         createTweetEmbed(record.url, record.id);
       });
     } else {
-      recentRecordsContainer.innerHTML = '<p class="text-red-500 text-center py-8">載入失敗</p>';
+      allRecordsContainer.innerHTML = '<p class="text-red-500 text-center py-8">載入失敗</p>';
     }
   } catch (error) {
     console.error('載入紀錄錯誤:', error);
-    recentRecordsContainer.innerHTML = '<p class="text-red-500 text-center py-8">網路錯誤</p>';
+    allRecordsContainer.innerHTML = '<p class="text-red-500 text-center py-8">網路錯誤</p>';
   }
 }
 
@@ -106,6 +125,10 @@ async function loadRecentRecords() {
  * @returns {string} HTML 字串
  */
 function renderRecord(record) {
+  const titleHtml = record.title
+    ? `<h3 class="text-lg font-semibold text-gray-800 mb-2">${escapeHtml(record.title)}</h3>`
+    : '';
+
   const tagsHtml = record.tags && record.tags.length > 0
     ? record.tags.map(tag => 
         `<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full mr-1">${escapeHtml(tag)}</span>`
@@ -119,14 +142,31 @@ function renderRecord(record) {
   const date = new Date(record.createdAt).toLocaleString('zh-TW');
 
   return `
-    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow" data-record-id="${record.id}">
+      ${titleHtml}
       <div class="mb-3" id="tweet-${record.id}"></div>
       <div class="mt-3">
         <div class="flex flex-wrap gap-2 mb-2">
           ${tagsHtml}
         </div>
         ${noteHtml}
-        <p class="text-xs text-gray-500 mt-2">建立時間：${date}</p>
+        <div class="flex justify-between items-center mt-3">
+          <p class="text-xs text-gray-500">建立時間：${date}</p>
+          <div class="flex gap-2">
+            <button
+              onclick="editRecord('${record.id}')"
+              class="bg-yellow-500 text-white text-sm px-3 py-1 rounded hover:bg-yellow-600 transition-colors"
+            >
+              編輯
+            </button>
+            <button
+              onclick="deleteRecord('${record.id}')"
+              class="bg-red-500 text-white text-sm px-3 py-1 rounded hover:bg-red-600 transition-colors"
+            >
+              刪除
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -155,6 +195,125 @@ function createTweetEmbed(url, id) {
 }
 
 /**
+ * 編輯紀錄
+ * @param {string} id - 紀錄 ID
+ */
+async function editRecord(id) {
+  try {
+    // 先取得所有紀錄以找到要編輯的紀錄
+    const response = await fetch('/api/records');
+    const result = await response.json();
+
+    if (result.success) {
+      const record = result.data.find(r => r.id === id);
+      if (record) {
+        // 填入表單
+        editIdInput.value = record.id;
+        editTitleInput.value = record.title || '';
+        editTagsInput.value = record.tags ? record.tags.join(', ') : '';
+        editNoteInput.value = record.note || '';
+        
+        // 顯示模態框
+        editModal.classList.remove('hidden');
+      }
+    }
+  } catch (error) {
+    console.error('載入紀錄錯誤:', error);
+    alert('無法載入紀錄');
+  }
+}
+
+// 將 editRecord 和 deleteRecord 設為全域函數，以便在 HTML 中使用
+window.editRecord = editRecord;
+
+/**
+ * 刪除紀錄
+ * @param {string} id - 紀錄 ID
+ */
+async function deleteRecord(id) {
+  if (!confirm('確定要刪除這筆紀錄嗎？')) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/records/${id}`, {
+      method: 'DELETE'
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      // 重新載入列表
+      loadAllRecords(currentSearchQuery);
+    } else {
+      alert(result.error || '刪除失敗');
+    }
+  } catch (error) {
+    console.error('刪除紀錄錯誤:', error);
+    alert('網路錯誤，請稍後再試');
+  }
+}
+
+window.deleteRecord = deleteRecord;
+
+/**
+ * 儲存編輯
+ */
+async function saveEdit() {
+  const id = editIdInput.value;
+  const title = editTitleInput.value.trim();
+  const tags = editTagsInput.value.trim();
+  const note = editNoteInput.value.trim();
+
+  try {
+    const response = await fetch(`/api/records/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title,
+        tags,
+        note
+      })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      // 關閉模態框
+      editModal.classList.add('hidden');
+      
+      // 重新載入列表
+      loadAllRecords(currentSearchQuery);
+    } else {
+      alert(result.error || '儲存失敗');
+    }
+  } catch (error) {
+    console.error('儲存編輯錯誤:', error);
+    alert('網路錯誤，請稍後再試');
+  }
+}
+
+/**
+ * 搜尋功能
+ */
+function performSearch() {
+  const query = searchInput.value.trim();
+  currentSearchQuery = query;
+  loadAllRecords(query);
+}
+
+/**
+ * 清除搜尋
+ */
+function clearSearch() {
+  searchInput.value = '';
+  currentSearchQuery = '';
+  loadAllRecords();
+}
+
+/**
  * HTML 轉義函數
  * @param {string} text - 要轉義的文字
  * @returns {string} 轉義後的文字
@@ -165,15 +324,40 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// 表單提交事件
+// 事件監聽器
 addRecordForm.addEventListener('submit', (e) => {
   e.preventDefault();
   addRecord();
 });
 
-// 頁面載入時載入最近紀錄
+searchBtn.addEventListener('click', performSearch);
+clearBtn.addEventListener('click', clearSearch);
+
+searchInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    performSearch();
+  }
+});
+
+editForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  saveEdit();
+});
+
+cancelEditBtn.addEventListener('click', () => {
+  editModal.classList.add('hidden');
+});
+
+// 點擊模態框背景關閉
+editModal.addEventListener('click', (e) => {
+  if (e.target === editModal) {
+    editModal.classList.add('hidden');
+  }
+});
+
+// 頁面載入時載入所有紀錄
 document.addEventListener('DOMContentLoaded', () => {
-  loadRecentRecords();
+  loadAllRecords();
   
   // 確保 Twitter widgets 已載入
   if (window.twttr && window.twttr.ready) {
@@ -182,4 +366,3 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
-
