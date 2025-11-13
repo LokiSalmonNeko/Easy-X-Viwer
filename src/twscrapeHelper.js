@@ -84,14 +84,15 @@ async function getTweetDetails(tweetId) {
  */
 async function addAccount(username, password, email, emailPassword = '') {
   try {
-    // 建立臨時檔案格式：username:password:email:email_password
-    const accountLine = emailPassword 
-      ? `${username}:${password}:${email}:${emailPassword}`
-      : `${username}:${password}:${email}`;
+    // twscrape 要求必須包含 4 個欄位：username:password:email:email_password
+    // 如果沒有提供 email_password，使用空字串或佔位符
+    const accountLine = `${username}:${password}:${email}:${emailPassword || ''}`;
     
     // 使用 echo 和管道傳遞帳號資訊
-    const format = emailPassword ? 'username:password:email:email_password' : 'username:password:email';
+    const format = 'username:password:email:email_password';
     const command = `echo "${accountLine}" | twscrape add_accounts /dev/stdin ${format}`;
+    
+    console.log('執行命令:', command.replace(password, '***').replace(emailPassword || '', '***'));
     
     const { stdout, stderr } = await execAsync(command, {
       timeout: 10000
@@ -101,7 +102,10 @@ async function addAccount(username, password, email, emailPassword = '') {
     
     if (stderr && !stderr.includes('WARNING')) {
       console.error('twscrape add_accounts error:', stderr);
-      return false;
+      // 檢查是否有實際錯誤
+      if (stderr.includes('error') || stderr.includes('Error')) {
+        throw new Error(stderr);
+      }
     }
 
     return true;
