@@ -499,17 +499,58 @@ app.get('/api/twscrape/accounts', async (req, res) => {
     }
 
     const accounts = await twscrapeHelper.listAccounts();
+    const hasSavedState = await twscrapeHelper.hasSavedLoginState();
 
     res.json({
       success: true,
       data: accounts,
-      installed: true
+      installed: true,
+      hasSavedState: hasSavedState
     });
   } catch (error) {
     console.error('獲取帳號列表失敗:', error);
     res.status(500).json({
       success: false,
       error: error.message || '無法獲取帳號列表'
+    });
+  }
+});
+
+/**
+ * POST /api/twscrape/save-state - 保存登入狀態（手動登入）
+ */
+app.post('/api/twscrape/save-state', async (req, res) => {
+  try {
+    const isInstalled = await twscrapeHelper.checkTwscrapeInstalled();
+    if (!isInstalled) {
+      return res.status(503).json({
+        success: false,
+        error: 'twscrape 未安裝'
+      });
+    }
+
+    // 檢查 Playwright 是否已安裝
+    const playwrightInstalled = await twscrapeHelper.checkPlaywrightInstalled();
+    if (!playwrightInstalled) {
+      return res.status(503).json({
+        success: false,
+        error: 'Playwright 未安裝。請執行: pip install playwright && playwright install chromium'
+      });
+    }
+
+    // 保存登入狀態（會開啟瀏覽器視窗，需要用戶手動操作）
+    const result = await twscrapeHelper.saveLoginState();
+
+    res.json({
+      success: true,
+      message: result.message || '登入狀態已保存',
+      data: result
+    });
+  } catch (error) {
+    console.error('保存登入狀態失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || '無法保存登入狀態'
     });
   }
 });

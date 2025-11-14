@@ -166,10 +166,75 @@ async function deleteAccount(username) {
 }
 
 /**
- * 登入 twscrape 帳號（使用瀏覽器模式以繞過 Cloudflare）
- * @returns {Promise<Object>} 登入結果，包含成功和失敗的帳號資訊
+ * 檢查是否有已保存的登入狀態
+ * @returns {Promise<boolean>}
  */
-async function loginAccounts() {
+async function hasSavedLoginState() {
+  try {
+    const path = require('path');
+    const fs = require('fs').promises;
+    const os = require('os');
+    
+    const stateDir = path.join(os.homedir(), '.twscrape', 'browser_states');
+    const stateFile = path.join(stateDir, 'login_state.json');
+    
+    try {
+      await fs.access(stateFile);
+      return true;
+    } catch {
+      return false;
+    }
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * 使用增強版登入腳本（支援 Stealth 模式和 Cookie 保存）
+ * @param {boolean} useStandardFallback - 是否在失敗時回退到標準登入（預設：true）
+ * @returns {Promise<Object>} 登入結果
+ */
+async function loginAccountsEnhanced(useStandardFallback = true) {
+  try {
+    const path = require('path');
+    const scriptPath = path.join(__dirname, '..', 'scripts', 'enhanced_login.py');
+    
+    // 檢查腳本是否存在
+    const fs = require('fs').promises;
+    try {
+      await fs.access(scriptPath);
+    } catch {
+      // 如果增強腳本不存在，使用標準登入方式（不使用增強模式）
+      if (useStandardFallback) {
+        return await loginAccountsStandard();
+      }
+      throw new Error('增強版登入腳本不存在');
+    }
+    
+    const { stdout, stderr } = await execAsync(`python3 "${scriptPath}"`, {
+      timeout: 180000, // 3 分鐘超時
+      maxBuffer: 1024 * 1024 * 10 // 10MB buffer
+    });
+    
+    console.log('增強版登入輸出:', stdout);
+    
+    // 解析結果（增強腳本會輸出相同的格式）
+    return parseLoginResult(stdout, stderr);
+  } catch (error) {
+    console.error('增強版登入失敗，回退到標準登入:', error.message);
+    // 如果增強版失敗，回退到標準登入（不使用增強模式）
+    if (useStandardFallback) {
+      return await loginAccountsStandard();
+    }
+    throw error;
+  }
+}
+
+/**
+ * 標準登入方式（不使用增強模式）
+ * @returns {Promise<Object>} 登入結果
+ */
+async function loginAccountsStandard() {
   try {
     // 設置環境變數以啟用瀏覽器模式
     // twscrape 會自動檢測 Playwright，如果已安裝則使用瀏覽器模式
@@ -188,79 +253,123 @@ async function loginAccounts() {
 
     console.log('twscrape login output:', stdout);
     
-    // 檢查是否有 Cloudflare 錯誤
-    const hasCloudflareError = stderr && (
-      stderr.includes('403') || 
-      stderr.includes('Cloudflare') || 
-      stderr.includes('Attention Required') ||
-      stderr.includes('<!DOCTYPE html>')
-    );
+    return parseLoginResult(stdout, stderr);
+  } catch (error) {
+    console.error('標準登入失敗:', error.message);
+    throw error;
+  }
+}
 
-    if (stderr && !stderr.includes('WARNING')) {
-      console.error('twscrape login error:', stderr);
-      
-      // 如果遇到 Cloudflare 錯誤
-      if (hasCloudflareError) {
-        const playwrightInstalled = await checkPlaywrightInstalled();
-        
-        if (!playwrightInstalled) {
-          throw new Error(
-            'Cloudflare 阻擋登入。請安裝 Playwright 以使用瀏覽器模式：\n' +
-            '1. 執行: pip install playwright\n' +
-            '2. 執行: playwright install chromium\n' +
-            '3. 重新嘗試登入\n\n' +
-            '如果問題持續，請嘗試：\n' +
-            '- 使用代理伺服器\n' +
-            '- 更換網路環境/IP\n' +
-            '- 等待一段時間後再試'
-          );
-        } else {
-          throw new Error(
-            'Cloudflare 阻擋登入。即使已安裝 Playwright，仍遇到 Cloudflare 驗證。\n' +
-            '建議：\n' +
-            '1. 確認 Playwright 瀏覽器已正確安裝: playwright install chromium\n' +
-            '2. 使用代理伺服器（在環境變數中設置 HTTP_PROXY/HTTPS_PROXY）\n' +
-            '3. 更換網路環境或 IP 地址\n' +
-            '4. 等待 10-30 分鐘後再試（可能是暫時限制）'
-          );
+/**
+ * 解析登入結果（共用邏輯）
+ * @param {string} stdout - 標準輸出
+ * @param {string} stderr - 標準錯誤
+ * @returns {Object} 登入結果
+ */
+function parseLoginResult(stdout, stderr) {
+  // 檢查是否有 Cloudflare 錯誤
+  const hasCloudflareError = stderr && (
+    stderr.includes('403') || 
+    stderr.includes('Cloudflare') || 
+    stderr.includes('Attention Required') ||
+    stderr.includes('<!DOCTYPE html>')
+  );
+
+  if (stderr && !stderr.includes('WARNING')) {
+    console.error('twscrape login error:', stderr);
+  }
+
+  // 解析登入結果
+  let successCount = 0;
+  let failedCount = 0;
+  let totalCount = 0;
+
+  // 從 stdout 中提取登入統計
+  try {
+    const resultMatch = stdout.match(/\{'total':\s*(\d+),\s*'success':\s*(\d+),\s*'failed':\s*(\d+)\}/);
+    if (resultMatch) {
+      totalCount = parseInt(resultMatch[1]) || 0;
+      successCount = parseInt(resultMatch[2]) || 0;
+      failedCount = parseInt(resultMatch[3]) || 0;
+    }
+  } catch (e) {
+    console.warn('無法解析登入結果統計:', e.message);
+  }
+
+  // 如果從 stderr 也能看到失敗訊息，即使解析失敗也標記為有失敗
+  if (hasCloudflareError || (stderr && stderr.includes('Failed to login'))) {
+    failedCount = Math.max(failedCount, 1);
+  }
+
+  return {
+    success: failedCount === 0,
+    output: stdout,
+    message: failedCount === 0 
+      ? `✓ 所有帳號登入成功 (${successCount}/${totalCount || successCount})` 
+      : `⚠ ${successCount} 個成功，${failedCount} 個失敗`,
+    successCount,
+    failedCount,
+    totalCount: totalCount || (successCount + failedCount),
+    hasCloudflareError
+  };
+}
+
+/**
+ * 登入 twscrape 帳號（使用瀏覽器模式以繞過 Cloudflare）
+ * @param {boolean} useEnhanced - 是否使用增強版登入（預設：true）
+ * @returns {Promise<Object>} 登入結果，包含成功和失敗的帳號資訊
+ */
+async function loginAccounts(useEnhanced = true) {
+  try {
+    // 如果啟用增強模式，先嘗試使用增強版登入
+    if (useEnhanced) {
+      const hasState = await hasSavedLoginState();
+      if (hasState) {
+        console.log('✓ 發現已保存的登入狀態，使用增強版登入');
+        const result = await loginAccountsEnhanced();
+        // 如果增強版成功，直接返回
+        if (result.success) {
+          return result;
         }
+        // 如果失敗，回退到標準登入
+        console.log('⚠ 增強版登入失敗，回退到標準登入');
       }
     }
-
-    // 解析登入結果
-    let successCount = 0;
-    let failedCount = 0;
-    let totalCount = 0;
-
-    // 從 stdout 中提取登入統計（格式: {'total': 1, 'success': 0, 'failed': 1}）
-    try {
-      const resultMatch = stdout.match(/\{'total':\s*(\d+),\s*'success':\s*(\d+),\s*'failed':\s*(\d+)\}/);
-      if (resultMatch) {
-        totalCount = parseInt(resultMatch[1]) || 0;
-        successCount = parseInt(resultMatch[2]) || 0;
-        failedCount = parseInt(resultMatch[3]) || 0;
+    
+    // 使用標準登入方式
+    const result = await loginAccountsStandard();
+    
+    // 如果遇到 Cloudflare 錯誤，提供更詳細的建議
+    if (result.hasCloudflareError) {
+      const playwrightInstalled = await checkPlaywrightInstalled();
+      
+      if (!playwrightInstalled) {
+        throw new Error(
+          'Cloudflare 阻擋登入。請安裝 Playwright 以使用瀏覽器模式：\n' +
+          '1. 執行: pip install playwright\n' +
+          '2. 執行: playwright install chromium\n' +
+          '3. 重新嘗試登入\n\n' +
+          '進階建議：\n' +
+          '- 執行: python3 scripts/save_login_state.py 手動登入並保存狀態\n' +
+          '- 使用代理伺服器（設置 HTTP_PROXY/HTTPS_PROXY）\n' +
+          '- 更換網路環境/IP'
+        );
+      } else {
+        throw new Error(
+          'Cloudflare 阻擋登入。即使已安裝 Playwright，仍遇到 Cloudflare 驗證。\n' +
+          '建議解決方案：\n' +
+          '1. 【推薦】執行 Cookie 保存機制：\n' +
+          '   python3 scripts/save_login_state.py\n' +
+          '   這能讓您手動登入一次後，之後自動跳過驗證\n\n' +
+          '2. 確認 Playwright 瀏覽器已正確安裝:\n' +
+          '   playwright install chromium\n\n' +
+          '3. 使用代理伺服器（在環境變數中設置 HTTP_PROXY/HTTPS_PROXY）\n\n' +
+          '4. 更換網路環境或 IP 地址\n\n' +
+          '5. 等待 10-30 分鐘後再試（可能是暫時限制）'
+        );
       }
-    } catch (e) {
-      // 如果解析失敗，嘗試其他格式
-      console.warn('無法解析登入結果統計:', e.message);
     }
-
-    // 如果從 stderr 也能看到失敗訊息，即使解析失敗也標記為有失敗
-    if (hasCloudflareError || (stderr && stderr.includes('Failed to login'))) {
-      failedCount = Math.max(failedCount, 1);
-    }
-
-    const result = {
-      success: failedCount === 0,
-      output: stdout,
-      message: failedCount === 0 
-        ? `✓ 所有帳號登入成功 (${successCount}/${totalCount || successCount})` 
-        : `⚠ ${successCount} 個成功，${failedCount} 個失敗`,
-      successCount,
-      failedCount,
-      totalCount: totalCount || (successCount + failedCount)
-    };
-
+    
     return result;
   } catch (error) {
     console.error('登入帳號失敗:', error.message);
@@ -283,17 +392,61 @@ async function loginAccounts() {
           'Cloudflare 阻擋登入。請安裝 Playwright 以使用瀏覽器模式：\n' +
           '1. pip install playwright\n' +
           '2. playwright install chromium\n' +
-          '3. 重新嘗試登入'
+          '3. 重新嘗試登入\n\n' +
+          '進階建議：執行 python3 scripts/save_login_state.py 手動登入並保存狀態'
         );
       } else {
         throw new Error(
           'Cloudflare 阻擋登入。即使已安裝 Playwright，仍遇到問題。\n' +
-          '請嘗試：1) 使用代理伺服器 2) 更換網路 3) 等待後重試'
+          '建議解決方案：\n' +
+          '1. 【推薦】執行 Cookie 保存機制：python3 scripts/save_login_state.py\n' +
+          '2. 使用代理伺服器（設置 HTTP_PROXY/HTTPS_PROXY）\n' +
+          '3. 更換網路環境\n' +
+          '4. 等待後重試'
         );
       }
     }
     
     throw new Error(`無法登入帳號: ${error.message}`);
+  }
+}
+
+/**
+ * 保存登入狀態（使用手動登入腳本）
+ * @returns {Promise<Object>} 執行結果
+ */
+async function saveLoginState() {
+  try {
+    const path = require('path');
+    const scriptPath = path.join(__dirname, '..', 'scripts', 'save_login_state.py');
+    
+    // 檢查腳本是否存在
+    const fs = require('fs').promises;
+    try {
+      await fs.access(scriptPath);
+    } catch {
+      throw new Error('保存登入狀態腳本不存在，請確認 scripts/save_login_state.py 存在');
+    }
+    
+    const { stdout, stderr } = await execAsync(`python3 "${scriptPath}"`, {
+      timeout: 600000, // 10 分鐘超時（手動登入需要時間）
+      maxBuffer: 1024 * 1024 * 10 // 10MB buffer
+    });
+    
+    console.log('保存登入狀態輸出:', stdout);
+    
+    if (stderr && !stderr.includes('WARNING')) {
+      console.error('保存登入狀態錯誤:', stderr);
+    }
+    
+    return {
+      success: true,
+      message: '登入狀態已保存',
+      output: stdout
+    };
+  } catch (error) {
+    console.error('保存登入狀態失敗:', error.message);
+    throw new Error(`無法保存登入狀態: ${error.message}`);
   }
 }
 
@@ -342,5 +495,7 @@ module.exports = {
   addAccount,
   deleteAccount,
   loginAccounts,
+  saveLoginState,
+  hasSavedLoginState,
   listAccounts
 };

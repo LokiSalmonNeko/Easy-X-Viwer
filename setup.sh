@@ -98,6 +98,14 @@ else
     echo "  playwright install chromium"
 fi
 
+# 確保腳本有執行權限
+echo ""
+echo "設置腳本執行權限..."
+if [ -d "scripts" ]; then
+    chmod +x scripts/*.py 2>/dev/null || true
+    echo "✓ 腳本權限已設置"
+fi
+
 echo ""
 echo "======================================"
 echo "安裝完成！"
@@ -107,5 +115,10 @@ echo "下一步："
 echo "1. 執行 npm install 安裝 Node.js 依賴"
 echo "2. 執行 npm start 啟動伺服器"
 echo "3. 訪問 http://localhost:3000/settings.html 設定 twscrape 帳號"
+echo ""
+echo "【進階】繞過 Cloudflare："
+echo "1. 執行: python3 scripts/save_login_state.py"
+echo "   這會開啟瀏覽器，讓您手動登入並保存狀態"
+echo "2. 之後登入會自動使用保存的狀態，無需再次通過驗證"
 echo ""
 
