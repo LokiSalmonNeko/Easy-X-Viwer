@@ -503,6 +503,37 @@ function clearSearch() {
 }
 
 /**
+ * 更新紀錄右上角的 API 類型標籤
+ * @param {string} recordId - 紀錄 ID
+ * @param {string} apiType - API 類型 ('embed', 'twitterapi', 'auto')
+ */
+function updateRecordBadge(recordId, apiType) {
+  const recordElement = document.querySelector(`[data-record-id="${recordId}"]`);
+  if (!recordElement) return;
+
+  const badgeMap = {
+    'twitterapi': '<span class="inline-block bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">TwitterAPI.io</span>',
+    'auto': '<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">自動</span>',
+    'embed': '<span class="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">官方 Embed</span>'
+  };
+
+  const badgeHtml = badgeMap[apiType] || badgeMap['embed'];
+  
+  // 找到右上角的標籤位置並更新
+  const badgeContainer = recordElement.querySelector('.flex.justify-between.items-start');
+  if (badgeContainer) {
+    const titleHtml = badgeContainer.querySelector('h3');
+    badgeContainer.innerHTML = '';
+    if (titleHtml) {
+      badgeContainer.appendChild(titleHtml);
+    }
+    const badgeDiv = document.createElement('div');
+    badgeDiv.innerHTML = badgeHtml;
+    badgeContainer.appendChild(badgeDiv.firstElementChild);
+  }
+}
+
+/**
  * 使用 TwitterAPI.io 嘗試載入貼文（備用方案）
  * @param {string} url - 貼文網址
  * @param {string} containerId - 容器 ID
@@ -511,6 +542,10 @@ async function tryTwitterAPILoad(url, containerId) {
   const container = document.getElementById(`tweet-${containerId}`);
   if (!container) return;
 
+  // 檢查該紀錄的原始 apiType
+  const recordElement = document.querySelector(`[data-record-id="${containerId}"]`);
+  const originalApiType = recordElement?.querySelector(`#tweet-${containerId}`)?.dataset?.apiType || 'embed';
+  
   container.innerHTML = '<p class="text-gray-500 text-sm p-4">正在使用 TwitterAPI.io 載入...</p>';
 
   try {
@@ -526,6 +561,37 @@ async function tryTwitterAPILoad(url, containerId) {
 
     if (result.success && result.data) {
       const tweet = result.data;
+      
+      // 如果原本是自動模式，現在切換到 TwitterAPI.io，則更新標籤和後端資料
+      if (originalApiType === 'auto') {
+        // 更新右上角標籤
+        updateRecordBadge(containerId, 'twitterapi');
+        
+        // 更新後端資料
+        try {
+          const updateResponse = await fetch(`/api/records/${containerId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              apiType: 'twitterapi'
+            })
+          });
+          
+          if (updateResponse.ok) {
+            // 更新 data-api-type 屬性
+            const tweetElement = document.getElementById(`tweet-${containerId}`);
+            if (tweetElement) {
+              tweetElement.setAttribute('data-api-type', 'twitterapi');
+            }
+            console.log('✓ 已更新紀錄 API 類型為 TwitterAPI.io');
+          }
+        } catch (updateError) {
+          console.warn('更新紀錄 API 類型失敗:', updateError);
+        }
+      }
+      
       // 顯示 TwitterAPI.io 載入的貼文內容
       container.innerHTML = `<div class="border border-purple-200 rounded-lg p-4 bg-purple-50">
         <div class="flex items-start gap-3 mb-3">
