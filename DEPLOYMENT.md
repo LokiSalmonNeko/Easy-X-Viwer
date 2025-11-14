@@ -42,8 +42,9 @@ COPY . .
 RUN npm run build:css
 
 # 安裝 twscrape 和 Playwright
+# 注意：Debian 12+ 需要 --break-system-packages（PEP 668），在 Docker 容器中是安全的
 RUN pip3 install --upgrade pip && \
-    pip3 install twscrape playwright
+    pip3 install --break-system-packages twscrape playwright
 
 # 安裝 Playwright 瀏覽器（Chromium）及其系統依賴
 RUN playwright install chromium && \

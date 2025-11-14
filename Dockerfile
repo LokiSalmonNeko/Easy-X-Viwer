@@ -25,9 +25,9 @@ COPY . .
 RUN npm run build:css
 
 # 安裝 twscrape 和 Playwright（用於瀏覽器模式以繞過 Cloudflare）
-# 注意：在 Debian 上不需要 --break-system-packages
+# 注意：Debian 12+ 需要 --break-system-packages（PEP 668），在 Docker 容器中是安全的
 RUN pip3 install --upgrade pip && \
-    pip3 install twscrape playwright && \
+    pip3 install --break-system-packages twscrape playwright && \
     echo "✓ twscrape 安裝成功" && \
     echo "✓ Playwright 安裝成功" && \
     (twscrape 2>&1 | head -1 || echo "已安裝 twscrape")
