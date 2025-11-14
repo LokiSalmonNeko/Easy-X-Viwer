@@ -9,7 +9,6 @@ const path = require('path');
 const https = require('https');
 const { readRecords, writeRecords, generateId, initializeRecordsFile } = require('./src/recordStore');
 const { isValidXUrl } = require('./src/validators');
-const { getTwitterApiKey, updateTwitterApiKey } = require('./src/configStore');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -151,7 +150,7 @@ app.post('/api/records', async (req, res) => {
       title: title,
       tags: tagsArray,
       note: note ? String(note).trim() : '',
-      apiType: apiType || 'embed', // embed, twitterapi, auto
+      apiType: 'embed', // 只支援官方 embed
       createdAt: new Date().toISOString()
     };
 
@@ -255,10 +254,7 @@ app.put('/api/records/:id', async (req, res) => {
       record.title = String(req.body.title).trim();
     }
 
-    // 處理 apiType 更新
-    if (req.body.apiType !== undefined) {
-      record.apiType = req.body.apiType || 'embed';
-    }
+    // apiType 固定為 embed，不再允許修改
 
     // 處理標籤更新
     if (tags !== undefined) {
@@ -341,47 +337,87 @@ function extractTweetId(url) {
 }
 
 /**
- * 轉換 TwitterAPI.io 回應格式為統一格式
- * @param {Object} apiData - TwitterAPI.io API 回應
- * @returns {Object} 轉換後的貼文資料
+ * 使用第三方服務獲取推文影片資訊
+ * 注意：這是一個簡化實現，實際可能需要使用付費 API 或其他方法
+ * @param {string} url - 推文 URL
+ * @returns {Promise<Object>} 影片資訊
  */
-function transformTwitterAPIData(apiData) {
-  const tweet = apiData.data || apiData;
-  
-  return {
-    id: tweet.id || tweet.id_str,
-    text: tweet.text || tweet.full_text || '',
-    rawContent: tweet.text || tweet.full_text || '',
-    user: {
-      id: tweet.user?.id || tweet.user?.id_str,
-      name: tweet.user?.name || '',
-      username: tweet.user?.screen_name || tweet.user?.username || '',
-      profile_image_url: tweet.user?.profile_image_url_https || tweet.user?.profile_image_url || ''
-    },
-    media: {
-      videos: tweet.extended_entities?.media
-        ?.filter(m => m.type === 'video' && m.video_info?.variants)
-        .map(m => ({
-          url: m.video_info.variants
-            .filter(v => v.content_type === 'video/mp4')
-            .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0]?.url || '',
-          thumbnail: m.media_url_https || m.media_url || ''
-        })) || [],
-      photos: tweet.extended_entities?.media
-        ?.filter(m => m.type === 'photo')
-        .map(m => ({
-          url: m.media_url_https || m.media_url || ''
-        })) || []
-    },
-    created_at: tweet.created_at,
-    url: `https://twitter.com/${tweet.user?.screen_name || tweet.user?.username}/status/${tweet.id || tweet.id_str}`
-  };
+async function getTweetVideoInfo(url) {
+  try {
+    // 使用第三方 API 獲取推文資訊（例如 twitter-downloader API）
+    // 這裡使用一個公開的 API，實際使用時可能需要替換
+    const fetch = (() => {
+      try {
+        return require('node-fetch');
+      } catch {
+        return globalThis.fetch;
+      }
+    })();
+    
+    const tweetId = extractTweetId(url);
+    if (!tweetId) {
+      throw new Error('無效的推文 URL');
+    }
+
+    // 嘗試使用 twitter-video-downloader API
+    // 注意：這是示例，實際可能需要使用其他服務
+    try {
+      const apiUrl = `https://api.fxtwitter.com/status/${tweetId}`;
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.tweet && data.tweet.media && data.tweet.media.videos) {
+          const videos = data.tweet.media.videos;
+          if (videos.length > 0) {
+            // 獲取最高畫質的影片
+            const bestVideo = videos.reduce((prev, current) => {
+              const prevBitrate = prev.bitrate || 0;
+              const currentBitrate = current.bitrate || 0;
+              return currentBitrate > prevBitrate ? current : prev;
+            });
+            
+            return {
+              success: true,
+              videos: [{
+                url: bestVideo.url || bestVideo.source,
+                thumbnail: data.tweet.media.photos && data.tweet.media.photos[0] 
+                  ? data.tweet.media.photos[0].url 
+                  : '',
+                duration: bestVideo.duration || 0,
+                bitrate: bestVideo.bitrate || 0
+              }]
+            };
+          }
+        }
+      }
+    } catch (apiError) {
+      console.warn('使用 fxtwitter API 失敗，嘗試其他方法:', apiError.message);
+    }
+
+    // 如果上述方法失敗，返回空結果
+    return {
+      success: false,
+      error: '無法獲取影片資訊'
+    };
+  } catch (error) {
+    console.error('獲取推文影片資訊失敗:', error);
+    return {
+      success: false,
+      error: error.message || '無法獲取影片資訊'
+    };
+  }
 }
 
 /**
- * POST /api/twitterapi/tweet - 使用 TwitterAPI.io 獲取貼文
+ * POST /api/download/video - 獲取推文影片下載連結
  */
-app.post('/api/twitterapi/tweet', async (req, res) => {
+app.post('/api/download/video', async (req, res) => {
   try {
     const { url } = req.body;
 
@@ -392,112 +428,36 @@ app.post('/api/twitterapi/tweet', async (req, res) => {
       });
     }
 
-    // 獲取 API 金鑰
-    const apiKey = await getTwitterApiKey();
-    if (!apiKey) {
+    // 驗證 URL 格式
+    if (!isValidXUrl(url)) {
       return res.status(400).json({
         success: false,
-        error: '未設定 TwitterAPI.io 金鑰。請至設定頁面設定 API 金鑰。'
+        error: '無效的 X (Twitter) 貼文網址'
       });
     }
 
-    // 提取 Tweet ID
-    const tweetId = extractTweetId(url);
-    if (!tweetId) {
-      return res.status(400).json({
+    // 獲取影片資訊
+    const videoInfo = await getTweetVideoInfo(url);
+
+    if (videoInfo.success && videoInfo.videos && videoInfo.videos.length > 0) {
+      res.json({
+        success: true,
+        data: {
+          videos: videoInfo.videos,
+          tweetUrl: url
+        }
+      });
+    } else {
+      res.status(404).json({
         success: false,
-        error: '無效的貼文 URL'
+        error: videoInfo.error || '此推文沒有影片，或無法獲取影片資訊'
       });
     }
-
-    // 調用 TwitterAPI.io
-    const fetch = (() => {
-      try {
-        return require('node-fetch');
-      } catch {
-        // Node.js 18+ 內建 fetch
-        return globalThis.fetch;
-      }
-    })();
-    const apiUrl = `https://api.twitterapi.io/api/v1/get_tweet_by_id?id=${tweetId}`;
-    
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `API 請求失敗: ${response.status} ${response.statusText}`);
-    }
-
-    const apiData = await response.json();
-    
-    // 轉換格式
-    const tweet = transformTwitterAPIData(apiData);
-
-    res.json({
-      success: true,
-      data: tweet
-    });
   } catch (error) {
-    console.error('TwitterAPI.io 獲取貼文失敗:', error);
+    console.error('獲取影片下載連結失敗:', error);
     res.status(500).json({
       success: false,
-      error: error.message || '無法獲取貼文資料'
-    });
-  }
-});
-
-/**
- * GET /api/config - 獲取配置（僅返回是否已設定 API 金鑰）
- */
-app.get('/api/config', async (req, res) => {
-  try {
-    const apiKey = await getTwitterApiKey();
-    res.json({
-      success: true,
-      data: {
-        hasApiKey: !!apiKey
-      }
-    });
-  } catch (error) {
-    console.error('獲取配置失敗:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || '無法獲取配置'
-    });
-  }
-});
-
-/**
- * POST /api/config/twitterapi - 設定 TwitterAPI.io 金鑰
- */
-app.post('/api/config/twitterapi', async (req, res) => {
-  try {
-    const { apiKey } = req.body;
-
-    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
-      return res.status(400).json({
-        success: false,
-        error: 'API 金鑰為必填欄位'
-      });
-    }
-
-    await updateTwitterApiKey(apiKey.trim());
-
-    res.json({
-      success: true,
-      message: 'API 金鑰已更新'
-    });
-  } catch (error) {
-    console.error('更新 API 金鑰失敗:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || '無法更新 API 金鑰'
+      error: error.message || '無法獲取影片下載連結'
     });
   }
 });

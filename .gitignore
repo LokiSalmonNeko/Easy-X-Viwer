@@ -6,7 +6,6 @@ public/css/tailwind.css
 
 # 資料檔案
 records.json
-config.json
 
 # 資料庫
 *.db

@@ -17,7 +17,6 @@ const editIdInput = document.getElementById('editId');
 const editTitleInput = document.getElementById('editTitle');
 const editTagsInput = document.getElementById('editTags');
 const editNoteInput = document.getElementById('editNote');
-const editApiTypeInput = document.getElementById('editApiType');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
 
 let currentSearchQuery = '';
@@ -50,7 +49,6 @@ async function addRecord() {
   const url = formData.get('url').trim();
   const tags = formData.get('tags').trim();
   const note = formData.get('note').trim();
-  const apiType = formData.get('apiType') || 'embed';
 
   try {
     const response = await fetch('/api/records', {
@@ -61,8 +59,7 @@ async function addRecord() {
       body: JSON.stringify({
         url,
         tags,
-        note,
-        apiType
+        note
       })
     });
 
@@ -136,11 +133,7 @@ function renderRecord(record) {
     ? `<h3 class="text-lg font-semibold text-gray-800 mb-2">${escapeHtml(record.title)}</h3>`
     : '';
 
-  const apiTypeBadge = record.apiType === 'twitterapi' 
-    ? '<span class="inline-block bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">TwitterAPI.io</span>'
-    : record.apiType === 'auto'
-    ? '<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">自動</span>'
-    : '<span class="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">官方 Embed</span>';
+  const apiTypeBadge = '<span class="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">官方 Embed</span>';
 
   const tagsHtml = record.tags && record.tags.length > 0
     ? record.tags.map(tag => 
@@ -169,6 +162,12 @@ function renderRecord(record) {
         <div class="flex justify-between items-center mt-3">
           <p class="text-xs text-gray-500">建立時間：${date}</p>
           <div class="flex gap-2">
+            <button
+              onclick="downloadVideo('${record.id}', '${escapeHtml(record.url)}')"
+              class="bg-blue-500 text-white text-sm px-3 py-1 rounded hover:bg-blue-600 transition-colors"
+            >
+              📥 下載影片
+            </button>
             <button
               onclick="editRecord('${record.id}')"
               class="bg-yellow-500 text-white text-sm px-3 py-1 rounded hover:bg-yellow-600 transition-colors"
@@ -199,87 +198,14 @@ function extractTweetId(url) {
 }
 
 /**
- * 根據 apiType 載入貼文
+ * 載入貼文（使用官方 embed）
  * @param {Object} record - 紀錄物件
  */
 function loadTweetByType(record) {
-  const apiType = record.apiType || 'embed';
-  
-  switch (apiType) {
-    case 'twitterapi':
-      // 直接使用 TwitterAPI.io 載入
-      tryTwitterAPILoad(record.url, record.id);
-      break;
-    case 'auto':
-      // 嘗試 embed，失敗時自動切換到 TwitterAPI.io
-      createTweetEmbedWithFallback(record.url, record.id);
-      break;
-    case 'embed':
-    default:
-      // 使用官方 embed
-      createTweetEmbed(record.url, record.id);
-      break;
-  }
+  // 只使用官方 embed
+  createTweetEmbed(record.url, record.id);
 }
 
-/**
- * 建立 Tweet embed，失敗時自動使用 TwitterAPI.io
- * @param {string} url - 貼文網址
- * @param {string} id - 容器 ID
- */
-function createTweetEmbedWithFallback(url, id) {
-  const container = document.getElementById(`tweet-${id}`);
-  if (!container) return;
-
-  const tweetId = extractTweetId(url);
-  if (!tweetId) {
-    tryTwitterAPILoad(url, id);
-    return;
-  }
-
-  container.innerHTML = '<p class="text-gray-500 text-sm">載入貼文中...</p>';
-
-  let attempts = 0;
-  const maxAttempts = 50;
-  
-  function waitAndCreate() {
-    attempts++;
-    
-    if (window.twttr && window.twttr.widgets && typeof window.twttr.widgets.createTweet === 'function') {
-      container.innerHTML = '';
-      
-      window.twttr.widgets.createTweet(
-        tweetId,
-        container,
-        {
-          align: 'center',
-          theme: 'light',
-          conversation: 'none',
-          cards: 'visible'
-        }
-      ).then(element => {
-        if (element) {
-          console.log(`✓ Tweet 載入成功 (embed): ${tweetId}`);
-        } else {
-          // embed 失敗，自動切換到 TwitterAPI.io
-          console.warn(`⚠ Embed 失敗，切換到 TwitterAPI.io: ${tweetId}`);
-          tryTwitterAPILoad(url, id);
-        }
-      }).catch(err => {
-        console.error(`✗ Embed 載入失敗，切換到 TwitterAPI.io: ${tweetId}`, err);
-        tryTwitterAPILoad(url, id);
-      });
-    } else if (attempts < maxAttempts) {
-      setTimeout(waitAndCreate, 200);
-    } else {
-      // 超時，切換到 TwitterAPI.io
-      console.warn(`Embed 載入超時，切換到 TwitterAPI.io`);
-      tryTwitterAPILoad(url, id);
-    }
-  }
-
-  waitAndCreate();
-}
 
 /**
  * 建立 Twitter embed
@@ -341,12 +267,7 @@ function createTweetEmbed(url, id) {
             console.warn(`⚠ Tweet 無法嵌入: ${tweetId}（可能被刪除、鎖帳或限制）`);
             container.innerHTML = `<div class="p-4 border border-gray-300 rounded bg-gray-50">
               <p class="text-sm text-gray-600 mb-3">此貼文無法嵌入（可能被刪除、設為私密、年齡限制或受地區限制）</p>
-              <div class="flex gap-2">
-                <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">在 X 上查看</a>
-                <button onclick="tryTwitterAPILoad('${url}', '${id}')" class="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
-                  嘗試備用載入
-                </button>
-              </div>
+              <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">在 X 上查看</a>
             </div>`;
           }
         }).catch(err => {
@@ -398,7 +319,6 @@ async function editRecord(id) {
         editTitleInput.value = record.title || '';
         editTagsInput.value = record.tags ? record.tags.join(', ') : '';
         editNoteInput.value = record.note || '';
-        editApiTypeInput.value = record.apiType || 'embed';
         
         // 顯示模態框
         editModal.classList.remove('hidden');
@@ -451,8 +371,6 @@ async function saveEdit() {
   const title = editTitleInput.value.trim();
   const tags = editTagsInput.value.trim();
   const note = editNoteInput.value.trim();
-  const apiType = editApiTypeInput.value;
-
   try {
     const response = await fetch(`/api/records/${id}`, {
       method: 'PUT',
@@ -462,8 +380,7 @@ async function saveEdit() {
       body: JSON.stringify({
         title,
         tags,
-        note,
-        apiType
+        note
       })
     });
 
@@ -503,53 +420,23 @@ function clearSearch() {
 }
 
 /**
- * 更新紀錄右上角的 API 類型標籤
+ * 下載影片
  * @param {string} recordId - 紀錄 ID
- * @param {string} apiType - API 類型 ('embed', 'twitterapi', 'auto')
- */
-function updateRecordBadge(recordId, apiType) {
-  const recordElement = document.querySelector(`[data-record-id="${recordId}"]`);
-  if (!recordElement) return;
-
-  const badgeMap = {
-    'twitterapi': '<span class="inline-block bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">TwitterAPI.io</span>',
-    'auto': '<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">自動</span>',
-    'embed': '<span class="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">官方 Embed</span>'
-  };
-
-  const badgeHtml = badgeMap[apiType] || badgeMap['embed'];
-  
-  // 找到右上角的標籤位置並更新
-  const badgeContainer = recordElement.querySelector('.flex.justify-between.items-start');
-  if (badgeContainer) {
-    const titleHtml = badgeContainer.querySelector('h3');
-    badgeContainer.innerHTML = '';
-    if (titleHtml) {
-      badgeContainer.appendChild(titleHtml);
-    }
-    const badgeDiv = document.createElement('div');
-    badgeDiv.innerHTML = badgeHtml;
-    badgeContainer.appendChild(badgeDiv.firstElementChild);
-  }
-}
-
-/**
- * 使用 TwitterAPI.io 嘗試載入貼文（備用方案）
  * @param {string} url - 貼文網址
- * @param {string} containerId - 容器 ID
  */
-async function tryTwitterAPILoad(url, containerId) {
-  const container = document.getElementById(`tweet-${containerId}`);
-  if (!container) return;
-
-  // 檢查該紀錄的原始 apiType
-  const recordElement = document.querySelector(`[data-record-id="${containerId}"]`);
-  const originalApiType = recordElement?.querySelector(`#tweet-${containerId}`)?.dataset?.apiType || 'embed';
+async function downloadVideo(recordId, url) {
+  // 獲取按鈕元素
+  const recordElement = document.querySelector(`[data-record-id="${recordId}"]`);
+  const button = recordElement ? recordElement.querySelector(`button[onclick*="downloadVideo('${recordId}'"]`) : null;
   
-  container.innerHTML = '<p class="text-gray-500 text-sm p-4">正在使用 TwitterAPI.io 載入...</p>';
-
   try {
-    const response = await fetch('/api/twitterapi/tweet', {
+    // 顯示載入訊息
+    if (button) {
+      button.disabled = true;
+      button.textContent = '正在獲取下載連結...';
+    }
+
+    const response = await fetch('/api/download/video', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -559,85 +446,68 @@ async function tryTwitterAPILoad(url, containerId) {
 
     const result = await response.json();
 
-    if (result.success && result.data) {
-      const tweet = result.data;
+    if (result.success && result.data && result.data.videos && result.data.videos.length > 0) {
+      const videos = result.data.videos;
       
-      // 如果原本是自動模式，現在切換到 TwitterAPI.io，則更新標籤和後端資料
-      if (originalApiType === 'auto') {
-        // 更新右上角標籤
-        updateRecordBadge(containerId, 'twitterapi');
-        
-        // 更新後端資料
-        try {
-          const updateResponse = await fetch(`/api/records/${containerId}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              apiType: 'twitterapi'
-            })
-          });
-          
-          if (updateResponse.ok) {
-            // 更新 data-api-type 屬性
-            const tweetElement = document.getElementById(`tweet-${containerId}`);
-            if (tweetElement) {
-              tweetElement.setAttribute('data-api-type', 'twitterapi');
-            }
-            console.log('✓ 已更新紀錄 API 類型為 TwitterAPI.io');
-          }
-        } catch (updateError) {
-          console.warn('更新紀錄 API 類型失敗:', updateError);
+      // 顯示下載連結
+      let downloadHtml = '<div class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded">';
+      downloadHtml += '<p class="text-sm font-medium text-blue-800 mb-2">📥 影片下載連結：</p>';
+      
+      videos.forEach((video, index) => {
+        const videoUrl = video.url || video.source || '';
+        if (videoUrl) {
+          downloadHtml += `
+            <div class="mb-2">
+              <a 
+                href="${escapeHtml(videoUrl)}" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                download
+                class="inline-block bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700 transition-colors"
+              >
+                📥 下載影片 ${videos.length > 1 ? `(${index + 1})` : ''}
+              </a>
+              ${video.bitrate ? `<span class="ml-2 text-xs text-gray-600">畫質: ${video.bitrate}kbps</span>` : ''}
+            </div>
+          `;
         }
+      });
+      
+      downloadHtml += '</div>';
+
+      // 在貼文容器下方顯示下載連結
+      const tweetContainer = document.getElementById(`tweet-${recordId}`);
+      if (tweetContainer) {
+        // 移除現有的下載連結（如果有的話）
+        const existingDownload = tweetContainer.parentElement.querySelector(`[data-download-${recordId}]`);
+        if (existingDownload) {
+          existingDownload.remove();
+        }
+
+        // 新增下載連結容器
+        const downloadDiv = document.createElement('div');
+        downloadDiv.setAttribute(`data-download-${recordId}`, 'true');
+        downloadDiv.innerHTML = downloadHtml;
+        tweetContainer.parentElement.insertBefore(downloadDiv, tweetContainer.nextSibling);
+
+        showMessage('✓ 影片下載連結已準備', 'success');
       }
-      
-      // 顯示 TwitterAPI.io 載入的貼文內容
-      container.innerHTML = `<div class="border border-purple-200 rounded-lg p-4 bg-purple-50">
-        <div class="flex items-start gap-3 mb-3">
-          ${tweet.user && tweet.user.profile_image_url ? 
-            `<img src="${escapeHtml(tweet.user.profile_image_url)}" alt="avatar" class="w-12 h-12 rounded-full" />` : 
-            '<div class="w-12 h-12 rounded-full bg-gray-300"></div>'
-          }
-          <div class="flex-1">
-            <div class="font-bold">${escapeHtml(tweet.user?.name || '未知使用者')}</div>
-            <div class="text-gray-600 text-sm">@${escapeHtml(tweet.user?.username || 'unknown')}</div>
-          </div>
-        </div>
-        <div class="text-gray-800 mb-3 whitespace-pre-wrap">${escapeHtml(tweet.rawContent || tweet.text || '')}</div>
-        ${tweet.media && tweet.media.videos && tweet.media.videos.length > 0 ? 
-          `<div class="mb-3">
-            <video controls class="w-full rounded-lg max-h-96">
-              <source src="${escapeHtml(tweet.media.videos[0].url)}" type="video/mp4">
-              您的瀏覽器不支援影片播放
-            </video>
-          </div>` : ''
-        }
-        ${tweet.media && tweet.media.photos && tweet.media.photos.length > 0 ? 
-          tweet.media.photos.map(photo => 
-            `<img src="${escapeHtml(photo.url)}" alt="media" class="w-full rounded-lg mb-2" />`
-          ).join('') : ''
-        }
-        <div class="text-xs text-gray-500 border-t border-purple-200 pt-2 mt-2">
-          <span class="bg-purple-100 px-2 py-1 rounded">TwitterAPI.io</span>
-          <a href="${url}" target="_blank" rel="noopener noreferrer" class="ml-2 text-blue-600 hover:underline">在 X 上查看</a>
-        </div>
-      </div>`;
     } else {
-      throw new Error(result.error || '載入失敗');
+      showMessage(result.error || '無法獲取影片下載連結，此貼文可能沒有影片', 'error');
     }
   } catch (error) {
-    console.error('TwitterAPI.io 載入失敗:', error);
-    container.innerHTML = `<div class="p-4 border border-red-300 rounded bg-red-50">
-      <p class="text-sm text-red-600 mb-2">載入失敗：${escapeHtml(error.message || '未知錯誤')}</p>
-      <p class="text-xs text-gray-600 mb-3">請確認已在設定頁面設定 TwitterAPI.io API 金鑰。</p>
-      <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">在 X 上查看</a>
-    </div>`;
+    console.error('獲取影片下載連結失敗:', error);
+    showMessage('✗ 獲取影片下載連結失敗，請稍後再試', 'error');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = '📥 下載影片';
+    }
   }
 }
 
 // 將函數設為全域
-window.tryTwitterAPILoad = tryTwitterAPILoad;
+window.downloadVideo = downloadVideo;
 
 /**
  * HTML 轉義函數
