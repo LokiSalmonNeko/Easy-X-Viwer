@@ -46,6 +46,32 @@ async function checkTwscrapeInstalled() {
 }
 
 /**
+ * 檢查 Playwright 是否已安裝（用於瀏覽器模式）
+ * @returns {Promise<boolean>}
+ */
+async function checkPlaywrightInstalled() {
+  try {
+    // 檢查 playwright 命令是否可用
+    await execAsync('python3 -c "import playwright"', {
+      timeout: 5000
+    });
+    
+    // 檢查瀏覽器是否已安裝
+    try {
+      await execAsync('playwright --version', {
+        timeout: 5000
+      });
+      return true;
+    } catch {
+      // playwright 已安裝但瀏覽器可能未下載
+      return false;
+    }
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
  * 使用 twscrape 獲取貼文詳情
  * @param {string} tweetId - 貼文 ID
  * @returns {Promise<Object>} 貼文資料
@@ -140,31 +166,133 @@ async function deleteAccount(username) {
 }
 
 /**
- * 登入 twscrape 帳號
+ * 登入 twscrape 帳號（使用瀏覽器模式以繞過 Cloudflare）
  * @returns {Promise<Object>} 登入結果，包含成功和失敗的帳號資訊
  */
 async function loginAccounts() {
   try {
+    // 設置環境變數以啟用瀏覽器模式
+    // twscrape 會自動檢測 Playwright，如果已安裝則使用瀏覽器模式
+    const env = {
+      ...process.env,
+      // 確保使用系統安裝的瀏覽器（如果 Playwright 已安裝）
+      PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || '0',
+    };
+
+    // 使用較長的超時時間，因為瀏覽器模式需要更長時間
     const { stdout, stderr } = await execAsync('twscrape login_accounts', {
-      timeout: 120000 // 2 分鐘超時
+      timeout: 180000, // 3 分鐘超時（瀏覽器模式需要更長時間）
+      env: env,
+      maxBuffer: 1024 * 1024 * 10 // 10MB buffer
     });
 
     console.log('twscrape login output:', stdout);
     
+    // 檢查是否有 Cloudflare 錯誤
+    const hasCloudflareError = stderr && (
+      stderr.includes('403') || 
+      stderr.includes('Cloudflare') || 
+      stderr.includes('Attention Required') ||
+      stderr.includes('<!DOCTYPE html>')
+    );
+
     if (stderr && !stderr.includes('WARNING')) {
       console.error('twscrape login error:', stderr);
+      
+      // 如果遇到 Cloudflare 錯誤
+      if (hasCloudflareError) {
+        const playwrightInstalled = await checkPlaywrightInstalled();
+        
+        if (!playwrightInstalled) {
+          throw new Error(
+            'Cloudflare 阻擋登入。請安裝 Playwright 以使用瀏覽器模式：\n' +
+            '1. 執行: pip install playwright\n' +
+            '2. 執行: playwright install chromium\n' +
+            '3. 重新嘗試登入\n\n' +
+            '如果問題持續，請嘗試：\n' +
+            '- 使用代理伺服器\n' +
+            '- 更換網路環境/IP\n' +
+            '- 等待一段時間後再試'
+          );
+        } else {
+          throw new Error(
+            'Cloudflare 阻擋登入。即使已安裝 Playwright，仍遇到 Cloudflare 驗證。\n' +
+            '建議：\n' +
+            '1. 確認 Playwright 瀏覽器已正確安裝: playwright install chromium\n' +
+            '2. 使用代理伺服器（在環境變數中設置 HTTP_PROXY/HTTPS_PROXY）\n' +
+            '3. 更換網路環境或 IP 地址\n' +
+            '4. 等待 10-30 分鐘後再試（可能是暫時限制）'
+          );
+        }
+      }
     }
 
     // 解析登入結果
+    let successCount = 0;
+    let failedCount = 0;
+    let totalCount = 0;
+
+    // 從 stdout 中提取登入統計（格式: {'total': 1, 'success': 0, 'failed': 1}）
+    try {
+      const resultMatch = stdout.match(/\{'total':\s*(\d+),\s*'success':\s*(\d+),\s*'failed':\s*(\d+)\}/);
+      if (resultMatch) {
+        totalCount = parseInt(resultMatch[1]) || 0;
+        successCount = parseInt(resultMatch[2]) || 0;
+        failedCount = parseInt(resultMatch[3]) || 0;
+      }
+    } catch (e) {
+      // 如果解析失敗，嘗試其他格式
+      console.warn('無法解析登入結果統計:', e.message);
+    }
+
+    // 如果從 stderr 也能看到失敗訊息，即使解析失敗也標記為有失敗
+    if (hasCloudflareError || (stderr && stderr.includes('Failed to login'))) {
+      failedCount = Math.max(failedCount, 1);
+    }
+
     const result = {
-      success: true,
+      success: failedCount === 0,
       output: stdout,
-      message: '登入流程已執行'
+      message: failedCount === 0 
+        ? `✓ 所有帳號登入成功 (${successCount}/${totalCount || successCount})` 
+        : `⚠ ${successCount} 個成功，${failedCount} 個失敗`,
+      successCount,
+      failedCount,
+      totalCount: totalCount || (successCount + failedCount)
     };
 
     return result;
   } catch (error) {
     console.error('登入帳號失敗:', error.message);
+    
+    // 如果是 Cloudflare 相關錯誤，錯誤訊息已經很詳細了
+    if (error.message && error.message.includes('Cloudflare')) {
+      throw error;
+    }
+    
+    // 檢查錯誤訊息中是否包含 Cloudflare 相關內容
+    if (error.message && (
+      error.message.includes('403') || 
+      error.message.includes('Cloudflare') ||
+      error.message.includes('Attention Required')
+    )) {
+      const playwrightInstalled = await checkPlaywrightInstalled();
+      
+      if (!playwrightInstalled) {
+        throw new Error(
+          'Cloudflare 阻擋登入。請安裝 Playwright 以使用瀏覽器模式：\n' +
+          '1. pip install playwright\n' +
+          '2. playwright install chromium\n' +
+          '3. 重新嘗試登入'
+        );
+      } else {
+        throw new Error(
+          'Cloudflare 阻擋登入。即使已安裝 Playwright，仍遇到問題。\n' +
+          '請嘗試：1) 使用代理伺服器 2) 更換網路 3) 等待後重試'
+        );
+      }
+    }
+    
     throw new Error(`無法登入帳號: ${error.message}`);
   }
 }
@@ -209,6 +337,7 @@ async function listAccounts() {
 module.exports = {
   extractTweetId,
   checkTwscrapeInstalled,
+  checkPlaywrightInstalled,
   getTweetDetails,
   addAccount,
   deleteAccount,

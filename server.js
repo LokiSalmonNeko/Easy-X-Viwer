@@ -469,9 +469,10 @@ app.post('/api/twscrape/login', async (req, res) => {
 
     const result = await twscrapeHelper.loginAccounts();
 
+    // 根據登入結果決定 success 狀態
     res.json({
-      success: true,
-      message: '帳號登入流程已完成',
+      success: result.success,
+      message: result.message || '帳號登入流程已完成',
       data: result
     });
   } catch (error) {

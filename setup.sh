@@ -70,6 +70,34 @@ else
     echo "可能需要將 Python scripts 目錄加入 PATH"
 fi
 
+# 安裝 Playwright（用於瀏覽器模式以繞過 Cloudflare）
+echo ""
+echo "安裝 Playwright（用於瀏覽器模式）..."
+$PIP_CMD install --break-system-packages playwright 2>/dev/null || \
+$PIP_CMD install playwright 2>/dev/null || \
+$PIP_CMD install --user playwright 2>/dev/null
+
+if [ $? -eq 0 ]; then
+    echo "✓ Playwright 安裝成功"
+    
+    # 安裝 Chromium 瀏覽器
+    echo ""
+    echo "安裝 Chromium 瀏覽器（可能需要幾分鐘）..."
+    if command -v playwright &> /dev/null; then
+        playwright install chromium 2>/dev/null || echo "⚠ 請手動執行: playwright install chromium"
+    else
+        python3 -m playwright install chromium 2>/dev/null || \
+        $PYTHON_CMD -m playwright install chromium 2>/dev/null || \
+        echo "⚠ 請手動執行: python3 -m playwright install chromium"
+    fi
+    echo "✓ Playwright 設定完成"
+else
+    echo "⚠ Playwright 安裝失敗（選用功能）"
+    echo "如果遇到 Cloudflare 錯誤，請手動執行："
+    echo "  $PIP_CMD install playwright"
+    echo "  playwright install chromium"
+fi
+
 echo ""
 echo "======================================"
 echo "安裝完成！"

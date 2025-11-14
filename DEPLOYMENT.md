@@ -37,11 +37,11 @@ RUN npm install
 COPY . .
 RUN npm run build:css
 
-# 安裝 twscrape
-RUN pip3 install --break-system-packages twscrape || pip3 install twscrape
+# 安裝 twscrape 和 Playwright（用於瀏覽器模式以繞過 Cloudflare）
+RUN pip3 install --break-system-packages twscrape playwright
 
-# 驗證安裝
-RUN twscrape --version || echo "twscrape 未正確安裝"
+# 安裝 Playwright 瀏覽器（Chromium）
+RUN playwright install chromium
 
 EXPOSE 3000
 CMD ["npm", "start"]
@@ -51,8 +51,8 @@ CMD ["npm", "start"]
 - ✅ 安裝 Node.js 18
 - ✅ 安裝 Python 3 和 pip
 - ✅ **自動安裝 twscrape**
+- ✅ **自動安裝 Playwright 和 Chromium（用於繞過 Cloudflare）**
 - ✅ 建置 Tailwind CSS
-- ✅ 驗證 twscrape 安裝
 
 ## 部署步驟
 
@@ -85,8 +85,8 @@ Zeabur 會依序執行：
    - 安裝 Python 3 和 pip
    - 執行 `npm install`
    - 執行 `npm run build:css`
-   - **執行 `pip3 install twscrape`**
-   - 驗證 twscrape 安裝
+   - **執行 `pip3 install twscrape playwright`**
+   - **執行 `playwright install chromium`（用於繞過 Cloudflare）**
 3. ✅ 部署容器
 4. ✅ 啟動應用程式
 
@@ -106,6 +106,19 @@ Zeabur 會依序執行：
 4. 在「已新增的帳號」區域，如果看到空列表（而非警告訊息），表示 twscrape 已成功安裝
 
 ## 疑難排解
+
+### Cloudflare 403 錯誤
+
+如果登入時遇到 Cloudflare 403 錯誤：
+
+**原因：** Cloudflare 的反機器人保護阻擋了自動登入
+
+**解決方法：**
+1. ✅ **已自動處理**：Dockerfile 已自動安裝 Playwright 和 Chromium，twscrape 會自動使用瀏覽器模式
+2. 如果問題持續，可以嘗試：
+   - 使用代理伺服器（設置環境變數 `HTTP_PROXY` 和 `HTTPS_PROXY`）
+   - 更換網路環境或 IP 地址
+   - 等待 10-30 分鐘後再試（可能是暫時限制）
 
 ### twscrape 未安裝
 

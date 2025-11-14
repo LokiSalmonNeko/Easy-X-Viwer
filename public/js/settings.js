@@ -93,7 +93,7 @@ async function addAccount(e) {
 async function loginAccounts() {
   loginBtn.disabled = true;
   loginBtn.textContent = '登入中...';
-  loginStatusDiv.innerHTML = '<p class="text-blue-600 text-sm">正在執行登入，請稍候（可能需要 1-2 分鐘）...</p>';
+  loginStatusDiv.innerHTML = '<p class="text-blue-600 text-sm">正在執行登入，請稍候（瀏覽器模式可能需要 2-3 分鐘）...</p>';
 
   try {
     const response = await fetch('/api/twscrape/login', {
@@ -102,8 +102,10 @@ async function loginAccounts() {
 
     const result = await response.json();
 
-    if (result.success) {
-      loginStatusDiv.innerHTML = '<p class="text-green-600 text-sm">✓ 登入流程已完成</p>';
+    if (result.success && (!result.data || result.data.failedCount === 0)) {
+      // 所有帳號都登入成功
+      const message = result.data?.message || result.message || '登入流程已完成';
+      loginStatusDiv.innerHTML = `<p class="text-green-600 text-sm">✓ ${message}</p>`;
       
       // 延遲 1 秒後重新載入帳號列表，確保狀態已更新
       setTimeout(() => {
@@ -111,11 +113,38 @@ async function loginAccounts() {
         showMessage('帳號狀態已更新', 'success');
       }, 1000);
     } else {
-      loginStatusDiv.innerHTML = `<p class="text-red-600 text-sm">✗ 登入失敗：${result.error}</p>`;
+      // 部分失敗或完全失敗
+      const errorMsg = result.error || result.message || '登入失敗';
+      let errorHtml = `<p class="text-red-600 text-sm font-semibold">✗ ${errorMsg}</p>`;
+      
+      // 如果是 Cloudflare 錯誤，顯示更詳細的說明
+      if (errorMsg.includes('Cloudflare') || errorMsg.includes('Playwright')) {
+        errorHtml += `
+          <div class="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded text-xs text-gray-700">
+            <p class="font-semibold mb-2">解決方法：</p>
+            <ol class="list-decimal list-inside space-y-1 ml-2">
+              <li>安裝 Playwright：<code class="bg-gray-100 px-1 rounded">pip install playwright</code></li>
+              <li>安裝瀏覽器：<code class="bg-gray-100 px-1 rounded">playwright install chromium</code></li>
+              <li>重新嘗試登入</li>
+            </ol>
+            <p class="mt-2 text-gray-600">如果問題持續，請嘗試使用代理伺服器或更換網路環境。</p>
+          </div>
+        `;
+      } else if (result.data && result.data.failedCount > 0) {
+        // 顯示部分失敗的統計
+        errorHtml += `<p class="text-orange-600 text-sm mt-2">${result.data.message || ''}</p>`;
+      }
+      
+      loginStatusDiv.innerHTML = errorHtml;
+      
+      // 即使部分失敗，也重新載入帳號列表
+      setTimeout(() => {
+        loadAccounts();
+      }, 1000);
     }
   } catch (error) {
     console.error('登入錯誤:', error);
-    loginStatusDiv.innerHTML = '<p class="text-red-600 text-sm">✗ 網路錯誤</p>';
+    loginStatusDiv.innerHTML = '<p class="text-red-600 text-sm">✗ 網路錯誤，請稍後再試</p>';
   } finally {
     loginBtn.disabled = false;
     loginBtn.textContent = '執行登入';
