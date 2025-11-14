@@ -13,7 +13,7 @@
       <h1 class="text-3xl font-bold text-gray-800 mb-2">Easy X Viewer</h1>
       <p class="text-gray-600">管理您的 X (Twitter) 貼文影片</p>
       <nav class="mt-4 flex gap-4">
-        <a href="/settings.html" class="text-blue-600 hover:text-blue-800 underline">⚙️ twscrape 設定</a>
+        <a href="/settings.html" class="text-blue-600 hover:text-blue-800 underline">⚙️ 設定</a>
       </nav>
     </header>
 
@@ -71,10 +71,10 @@
             class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="embed">官方 Embed（推薦）</option>
-            <option value="twscrape">twscrape（年齡限制貼文）</option>
-            <option value="auto">自動（優先 Embed，失敗時使用 twscrape）</option>
+            <option value="twitterapi">TwitterAPI.io（年齡限制貼文）</option>
+            <option value="auto">自動（優先 Embed，失敗時使用 TwitterAPI.io）</option>
           </select>
-          <p class="text-xs text-gray-500 mt-1">年齡限制貼文建議選擇 twscrape 或自動</p>
+          <p class="text-xs text-gray-500 mt-1">年齡限制貼文建議選擇 TwitterAPI.io 或自動（需先設定 API 金鑰）</p>
         </div>
 
         <button
@@ -200,7 +200,7 @@
             class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="embed">官方 Embed</option>
-            <option value="twscrape">twscrape</option>
+            <option value="twitterapi">TwitterAPI.io</option>
             <option value="auto">自動</option>
           </select>
         </div>

@@ -6,10 +6,10 @@ public/css/tailwind.css
 
 # 資料檔案
 records.json
+config.json
 
-# twscrape 資料庫
+# 資料庫
 *.db
-accounts.db
 
 # 系統檔案
 .DS_Store

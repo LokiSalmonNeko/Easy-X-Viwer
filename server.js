@@ -9,7 +9,7 @@ const path = require('path');
 const https = require('https');
 const { readRecords, writeRecords, generateId, initializeRecordsFile } = require('./src/recordStore');
 const { isValidXUrl } = require('./src/validators');
-const twscrapeHelper = require('./src/twscrapeHelper');
+const { getTwitterApiKey, updateTwitterApiKey } = require('./src/configStore');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -151,7 +151,7 @@ app.post('/api/records', async (req, res) => {
       title: title,
       tags: tagsArray,
       note: note ? String(note).trim() : '',
-      apiType: apiType || 'embed', // embed, twscrape, auto
+      apiType: apiType || 'embed', // embed, twitterapi, auto
       createdAt: new Date().toISOString()
     };
 
@@ -331,9 +331,57 @@ app.delete('/api/records/:id', async (req, res) => {
 });
 
 /**
- * POST /api/twscrape/tweet - 使用 twscrape 獲取貼文
+ * 從 URL 提取 Tweet ID
+ * @param {string} url - 貼文網址
+ * @returns {string|null} Tweet ID
  */
-app.post('/api/twscrape/tweet', async (req, res) => {
+function extractTweetId(url) {
+  const match = url.match(/status\/(\d+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * 轉換 TwitterAPI.io 回應格式為統一格式
+ * @param {Object} apiData - TwitterAPI.io API 回應
+ * @returns {Object} 轉換後的貼文資料
+ */
+function transformTwitterAPIData(apiData) {
+  const tweet = apiData.data || apiData;
+  
+  return {
+    id: tweet.id || tweet.id_str,
+    text: tweet.text || tweet.full_text || '',
+    rawContent: tweet.text || tweet.full_text || '',
+    user: {
+      id: tweet.user?.id || tweet.user?.id_str,
+      name: tweet.user?.name || '',
+      username: tweet.user?.screen_name || tweet.user?.username || '',
+      profile_image_url: tweet.user?.profile_image_url_https || tweet.user?.profile_image_url || ''
+    },
+    media: {
+      videos: tweet.extended_entities?.media
+        ?.filter(m => m.type === 'video' && m.video_info?.variants)
+        .map(m => ({
+          url: m.video_info.variants
+            .filter(v => v.content_type === 'video/mp4')
+            .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0]?.url || '',
+          thumbnail: m.media_url_https || m.media_url || ''
+        })) || [],
+      photos: tweet.extended_entities?.media
+        ?.filter(m => m.type === 'photo')
+        .map(m => ({
+          url: m.media_url_https || m.media_url || ''
+        })) || []
+    },
+    created_at: tweet.created_at,
+    url: `https://twitter.com/${tweet.user?.screen_name || tweet.user?.username}/status/${tweet.id || tweet.id_str}`
+  };
+}
+
+/**
+ * POST /api/twitterapi/tweet - 使用 TwitterAPI.io 獲取貼文
+ */
+app.post('/api/twitterapi/tweet', async (req, res) => {
   try {
     const { url } = req.body;
 
@@ -344,17 +392,17 @@ app.post('/api/twscrape/tweet', async (req, res) => {
       });
     }
 
-    // 檢查 twscrape 是否已安裝
-    const isInstalled = await twscrapeHelper.checkTwscrapeInstalled();
-    if (!isInstalled) {
-      return res.status(503).json({
+    // 獲取 API 金鑰
+    const apiKey = await getTwitterApiKey();
+    if (!apiKey) {
+      return res.status(400).json({
         success: false,
-        error: 'twscrape 未安裝。請執行: pip install twscrape'
+        error: '未設定 TwitterAPI.io 金鑰。請至設定頁面設定 API 金鑰。'
       });
     }
 
     // 提取 Tweet ID
-    const tweetId = twscrapeHelper.extractTweetId(url);
+    const tweetId = extractTweetId(url);
     if (!tweetId) {
       return res.status(400).json({
         success: false,
@@ -362,15 +410,41 @@ app.post('/api/twscrape/tweet', async (req, res) => {
       });
     }
 
-    // 使用 twscrape 獲取貼文
-    const tweet = await twscrapeHelper.getTweetDetails(tweetId);
+    // 調用 TwitterAPI.io
+    const fetch = (() => {
+      try {
+        return require('node-fetch');
+      } catch {
+        // Node.js 18+ 內建 fetch
+        return globalThis.fetch;
+      }
+    })();
+    const apiUrl = `https://api.twitterapi.io/api/v1/get_tweet_by_id?id=${tweetId}`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `API 請求失敗: ${response.status} ${response.statusText}`);
+    }
+
+    const apiData = await response.json();
+    
+    // 轉換格式
+    const tweet = transformTwitterAPIData(apiData);
 
     res.json({
       success: true,
       data: tweet
     });
   } catch (error) {
-    console.error('twscrape 獲取貼文失敗:', error);
+    console.error('TwitterAPI.io 獲取貼文失敗:', error);
     res.status(500).json({
       success: false,
       error: error.message || '無法獲取貼文資料'
@@ -379,178 +453,51 @@ app.post('/api/twscrape/tweet', async (req, res) => {
 });
 
 /**
- * POST /api/twscrape/accounts - 新增 Twitter 帳號
+ * GET /api/config - 獲取配置（僅返回是否已設定 API 金鑰）
  */
-app.post('/api/twscrape/accounts', async (req, res) => {
+app.get('/api/config', async (req, res) => {
   try {
-    const { username, password, email, emailPassword } = req.body;
+    const apiKey = await getTwitterApiKey();
+    res.json({
+      success: true,
+      data: {
+        hasApiKey: !!apiKey
+      }
+    });
+  } catch (error) {
+    console.error('獲取配置失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || '無法獲取配置'
+    });
+  }
+});
 
-    if (!username || !password || !email) {
+/**
+ * POST /api/config/twitterapi - 設定 TwitterAPI.io 金鑰
+ */
+app.post('/api/config/twitterapi', async (req, res) => {
+  try {
+    const { apiKey } = req.body;
+
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
       return res.status(400).json({
         success: false,
-        error: 'username、password 和 email 為必填欄位'
+        error: 'API 金鑰為必填欄位'
       });
     }
 
-    // 檢查 twscrape 是否已安裝
-    const isInstalled = await twscrapeHelper.checkTwscrapeInstalled();
-    if (!isInstalled) {
-      return res.status(503).json({
-        success: false,
-        error: 'twscrape 未安裝。請執行: pip install twscrape'
-      });
-    }
-
-    // 新增帳號
-    await twscrapeHelper.addAccount(username, password, email, emailPassword);
+    await updateTwitterApiKey(apiKey.trim());
 
     res.json({
       success: true,
-      message: '帳號新增成功，請執行登入操作'
+      message: 'API 金鑰已更新'
     });
   } catch (error) {
-    console.error('新增帳號失敗:', error);
+    console.error('更新 API 金鑰失敗:', error);
     res.status(500).json({
       success: false,
-      error: error.message || '無法新增帳號'
-    });
-  }
-});
-
-/**
- * DELETE /api/twscrape/accounts/:username - 刪除 Twitter 帳號
- */
-app.delete('/api/twscrape/accounts/:username', async (req, res) => {
-  try {
-    const { username } = req.params;
-
-    if (!username) {
-      return res.status(400).json({
-        success: false,
-        error: 'username 為必填欄位'
-      });
-    }
-
-    const isInstalled = await twscrapeHelper.checkTwscrapeInstalled();
-    if (!isInstalled) {
-      return res.status(503).json({
-        success: false,
-        error: 'twscrape 未安裝'
-      });
-    }
-
-    await twscrapeHelper.deleteAccount(username);
-
-    res.json({
-      success: true,
-      message: '帳號刪除成功'
-    });
-  } catch (error) {
-    console.error('刪除帳號失敗:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || '無法刪除帳號'
-    });
-  }
-});
-
-/**
- * POST /api/twscrape/login - 登入 twscrape 帳號
- */
-app.post('/api/twscrape/login', async (req, res) => {
-  try {
-    const isInstalled = await twscrapeHelper.checkTwscrapeInstalled();
-    if (!isInstalled) {
-      return res.status(503).json({
-        success: false,
-        error: 'twscrape 未安裝'
-      });
-    }
-
-    const result = await twscrapeHelper.loginAccounts();
-
-    // 根據登入結果決定 success 狀態
-    res.json({
-      success: result.success,
-      message: result.message || '帳號登入流程已完成',
-      data: result
-    });
-  } catch (error) {
-    console.error('登入失敗:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || '無法登入帳號'
-    });
-  }
-});
-
-/**
- * GET /api/twscrape/accounts - 獲取帳號列表
- */
-app.get('/api/twscrape/accounts', async (req, res) => {
-  try {
-    const isInstalled = await twscrapeHelper.checkTwscrapeInstalled();
-    if (!isInstalled) {
-      return res.json({
-        success: true,
-        data: [],
-        installed: false
-      });
-    }
-
-    const accounts = await twscrapeHelper.listAccounts();
-    const hasSavedState = await twscrapeHelper.hasSavedLoginState();
-
-    res.json({
-      success: true,
-      data: accounts,
-      installed: true,
-      hasSavedState: hasSavedState
-    });
-  } catch (error) {
-    console.error('獲取帳號列表失敗:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || '無法獲取帳號列表'
-    });
-  }
-});
-
-/**
- * POST /api/twscrape/save-state - 保存登入狀態（手動登入）
- */
-app.post('/api/twscrape/save-state', async (req, res) => {
-  try {
-    const isInstalled = await twscrapeHelper.checkTwscrapeInstalled();
-    if (!isInstalled) {
-      return res.status(503).json({
-        success: false,
-        error: 'twscrape 未安裝'
-      });
-    }
-
-    // 檢查 Playwright 是否已安裝
-    const playwrightInstalled = await twscrapeHelper.checkPlaywrightInstalled();
-    if (!playwrightInstalled) {
-      return res.status(503).json({
-        success: false,
-        error: 'Playwright 未安裝。請執行: pip install playwright && playwright install chromium'
-      });
-    }
-
-    // 保存登入狀態（會開啟瀏覽器視窗，需要用戶手動操作）
-    const result = await twscrapeHelper.saveLoginState();
-
-    res.json({
-      success: true,
-      message: result.message || '登入狀態已保存',
-      data: result
-    });
-  } catch (error) {
-    console.error('保存登入狀態失敗:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || '無法保存登入狀態'
+      error: error.message || '無法更新 API 金鑰'
     });
   }
 });

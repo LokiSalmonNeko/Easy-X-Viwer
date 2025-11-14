@@ -1,13 +1,11 @@
 /**
- * twscrape 設定頁面邏輯
+ * 設定頁面邏輯
  */
 
-const addAccountForm = document.getElementById('addAccountForm');
+const apiKeyForm = document.getElementById('apiKeyForm');
 const messageDiv = document.getElementById('message');
-const accountsListDiv = document.getElementById('accountsList');
-const loginBtn = document.getElementById('loginBtn');
-const refreshBtn = document.getElementById('refreshBtn');
-const loginStatusDiv = document.getElementById('loginStatus');
+const statusDiv = document.getElementById('status');
+const checkBtn = document.getElementById('checkBtn');
 
 /**
  * 顯示訊息
@@ -27,231 +25,102 @@ function showMessage(message, type = 'success') {
 }
 
 /**
- * 檢查安裝狀態（在帳號列表顯示）
+ * 檢查 API 金鑰狀態
  */
-async function checkInstallStatus() {
+async function checkStatus() {
   try {
-    const response = await fetch('/api/twscrape/accounts');
+    const response = await fetch('/api/config');
     const result = await response.json();
 
-    if (!result.installed) {
-      // 在帳號列表區域顯示簡潔訊息
-      accountsListDiv.innerHTML = `<div class="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-        <p class="text-gray-600 text-sm">twscrape 服務未啟用</p>
-        <p class="text-gray-500 text-xs mt-2">備用載入功能無法使用</p>
-      </div>`;
+    if (result.success) {
+      if (result.data.hasApiKey) {
+        statusDiv.innerHTML = `
+          <div class="bg-green-50 border-l-4 border-green-500 p-4">
+            <div class="flex">
+              <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-green-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                </svg>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm font-medium text-green-800">✓ API 金鑰已設定</p>
+                <p class="text-xs text-green-700 mt-1">您可以在主頁面使用 TwitterAPI.io 來載入貼文</p>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        statusDiv.innerHTML = `
+          <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4">
+            <div class="flex">
+              <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-yellow-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                </svg>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm font-medium text-yellow-800">⚠️ 尚未設定 API 金鑰</p>
+                <p class="text-xs text-yellow-700 mt-1">請輸入並儲存您的 TwitterAPI.io API 金鑰</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      statusDiv.classList.remove('hidden');
     }
   } catch (error) {
-    console.error('檢查安裝狀態失敗:', error);
+    console.error('檢查狀態失敗:', error);
+    showMessage('無法檢查狀態', 'error');
   }
 }
 
 /**
- * 新增帳號
+ * 儲存 API 金鑰
  */
-async function addAccount(e) {
+async function saveApiKey(e) {
   e.preventDefault();
 
-  const formData = new FormData(addAccountForm);
-  const username = formData.get('username').trim();
-  const password = formData.get('password').trim();
-  const email = formData.get('email').trim();
-  const emailPassword = formData.get('emailPassword').trim();
+  const formData = new FormData(apiKeyForm);
+  const apiKey = formData.get('apiKey').trim();
+
+  if (!apiKey) {
+    showMessage('請輸入 API 金鑰', 'error');
+    return;
+  }
 
   try {
-    const response = await fetch('/api/twscrape/accounts', {
+    const response = await fetch('/api/config/twitterapi', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        username,
-        password,
-        email,
-        emailPassword
+        apiKey
       })
     });
 
     const result = await response.json();
 
     if (result.success) {
-      showMessage('帳號新增成功！請執行登入操作', 'success');
-      addAccountForm.reset();
-      loadAccounts();
-    } else {
-      showMessage(result.error || '新增失敗', 'error');
-    }
-  } catch (error) {
-    console.error('新增帳號錯誤:', error);
-    showMessage('網路錯誤，請稍後再試', 'error');
-  }
-}
-
-/**
- * 登入帳號
- */
-async function loginAccounts() {
-  loginBtn.disabled = true;
-  loginBtn.textContent = '登入中...';
-  loginStatusDiv.innerHTML = '<p class="text-blue-600 text-sm">正在執行登入，請稍候（瀏覽器模式可能需要 2-3 分鐘）...</p>';
-
-  try {
-    const response = await fetch('/api/twscrape/login', {
-      method: 'POST'
-    });
-
-    const result = await response.json();
-
-    if (result.success && (!result.data || result.data.failedCount === 0)) {
-      // 所有帳號都登入成功
-      const message = result.data?.message || result.message || '登入流程已完成';
-      loginStatusDiv.innerHTML = `<p class="text-green-600 text-sm">✓ ${message}</p>`;
-      
-      // 延遲 1 秒後重新載入帳號列表，確保狀態已更新
+      showMessage('API 金鑰已成功儲存！', 'success');
+      apiKeyForm.reset();
       setTimeout(() => {
-        loadAccounts();
-        showMessage('帳號狀態已更新', 'success');
-      }, 1000);
+        checkStatus();
+      }, 500);
     } else {
-      // 部分失敗或完全失敗
-      const errorMsg = result.error || result.message || '登入失敗';
-      let errorHtml = `<p class="text-red-600 text-sm font-semibold">✗ ${errorMsg}</p>`;
-      
-      // 如果是 Cloudflare 錯誤，顯示更詳細的說明
-      if (errorMsg.includes('Cloudflare') || errorMsg.includes('Playwright')) {
-        errorHtml += `
-          <div class="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded text-xs text-gray-700">
-            <p class="font-semibold mb-2">解決方法：</p>
-            <ol class="list-decimal list-inside space-y-1 ml-2">
-              <li>安裝 Playwright：<code class="bg-gray-100 px-1 rounded">pip install playwright</code></li>
-              <li>安裝瀏覽器：<code class="bg-gray-100 px-1 rounded">playwright install chromium</code></li>
-              <li>重新嘗試登入</li>
-            </ol>
-            <p class="mt-2 text-gray-600">如果問題持續，請嘗試使用代理伺服器或更換網路環境。</p>
-          </div>
-        `;
-      } else if (result.data && result.data.failedCount > 0) {
-        // 顯示部分失敗的統計
-        errorHtml += `<p class="text-orange-600 text-sm mt-2">${result.data.message || ''}</p>`;
-      }
-      
-      loginStatusDiv.innerHTML = errorHtml;
-      
-      // 即使部分失敗，也重新載入帳號列表
-      setTimeout(() => {
-        loadAccounts();
-      }, 1000);
+      showMessage(result.error || '儲存失敗', 'error');
     }
   } catch (error) {
-    console.error('登入錯誤:', error);
-    loginStatusDiv.innerHTML = '<p class="text-red-600 text-sm">✗ 網路錯誤，請稍後再試</p>';
-  } finally {
-    loginBtn.disabled = false;
-    loginBtn.textContent = '執行登入';
-  }
-}
-
-/**
- * 刪除帳號
- * @param {string} username - 使用者名稱
- */
-async function deleteAccountAction(username) {
-  if (!confirm(`確定要刪除帳號 @${username} 嗎？`)) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/twscrape/accounts/${username}`, {
-      method: 'DELETE'
-    });
-
-    const result = await response.json();
-
-    if (result.success) {
-      showMessage(`帳號 @${username} 已刪除`, 'success');
-      loadAccounts();
-    } else {
-      showMessage(result.error || '刪除失敗', 'error');
-    }
-  } catch (error) {
-    console.error('刪除帳號錯誤:', error);
+    console.error('儲存 API 金鑰錯誤:', error);
     showMessage('網路錯誤，請稍後再試', 'error');
-  }
-}
-
-// 設為全域函數
-window.deleteAccountAction = deleteAccountAction;
-
-/**
- * 載入帳號列表
- */
-async function loadAccounts() {
-  try {
-    const response = await fetch('/api/twscrape/accounts');
-    const result = await response.json();
-
-    if (!result.installed) {
-      accountsListDiv.innerHTML = '<p class="text-red-600 text-center py-8">twscrape 未安裝</p>';
-      return;
-    }
-
-    if (result.success && result.data && result.data.length > 0) {
-      accountsListDiv.innerHTML = `
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">使用者名稱</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">已登入</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">啟用</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">最後使用</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">請求數</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-              ${result.data.map(acc => `
-                <tr>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">@${acc.username}</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm">${acc.logged_in ? 
-                    '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">已登入</span>' : 
-                    '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">未登入</span>'}</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm">${acc.active ? 
-                    '<span class="text-green-600">✓</span>' : 
-                    '<span class="text-gray-400">-</span>'}</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${acc.last_used || '-'}</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${acc.total_req || 0}</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm">
-                    <button 
-                      onclick="deleteAccountAction('${acc.username}')"
-                      class="text-red-600 hover:text-red-900 font-medium"
-                    >
-                      刪除
-                    </button>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      `;
-    } else {
-      accountsListDiv.innerHTML = '<p class="text-gray-500 text-center py-8">尚未新增任何帳號</p>';
-    }
-  } catch (error) {
-    console.error('載入帳號列表錯誤:', error);
-    accountsListDiv.innerHTML = '<p class="text-red-600 text-center py-8">載入失敗</p>';
   }
 }
 
 // 事件監聽
-addAccountForm.addEventListener('submit', addAccount);
-loginBtn.addEventListener('click', loginAccounts);
-refreshBtn.addEventListener('click', loadAccounts);
+apiKeyForm.addEventListener('submit', saveApiKey);
+checkBtn.addEventListener('click', checkStatus);
 
 // 頁面載入時執行
 document.addEventListener('DOMContentLoaded', () => {
-  loadAccounts();
-  checkInstallStatus();
+  checkStatus();
 });
-

@@ -136,8 +136,8 @@ function renderRecord(record) {
     ? `<h3 class="text-lg font-semibold text-gray-800 mb-2">${escapeHtml(record.title)}</h3>`
     : '';
 
-  const apiTypeBadge = record.apiType === 'twscrape' 
-    ? '<span class="inline-block bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">twscrape</span>'
+  const apiTypeBadge = record.apiType === 'twitterapi' 
+    ? '<span class="inline-block bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">TwitterAPI.io</span>'
     : record.apiType === 'auto'
     ? '<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">自動</span>'
     : '<span class="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">官方 Embed</span>';
@@ -206,12 +206,12 @@ function loadTweetByType(record) {
   const apiType = record.apiType || 'embed';
   
   switch (apiType) {
-    case 'twscrape':
-      // 直接使用 twscrape 載入
-      tryTwscrapeLoad(record.url, record.id);
+    case 'twitterapi':
+      // 直接使用 TwitterAPI.io 載入
+      tryTwitterAPILoad(record.url, record.id);
       break;
     case 'auto':
-      // 嘗試 embed，失敗時自動切換到 twscrape
+      // 嘗試 embed，失敗時自動切換到 TwitterAPI.io
       createTweetEmbedWithFallback(record.url, record.id);
       break;
     case 'embed':
@@ -223,7 +223,7 @@ function loadTweetByType(record) {
 }
 
 /**
- * 建立 Tweet embed，失敗時自動使用 twscrape
+ * 建立 Tweet embed，失敗時自動使用 TwitterAPI.io
  * @param {string} url - 貼文網址
  * @param {string} id - 容器 ID
  */
@@ -233,7 +233,7 @@ function createTweetEmbedWithFallback(url, id) {
 
   const tweetId = extractTweetId(url);
   if (!tweetId) {
-    tryTwscrapeLoad(url, id);
+    tryTwitterAPILoad(url, id);
     return;
   }
 
@@ -261,20 +261,20 @@ function createTweetEmbedWithFallback(url, id) {
         if (element) {
           console.log(`✓ Tweet 載入成功 (embed): ${tweetId}`);
         } else {
-          // embed 失敗，自動切換到 twscrape
-          console.warn(`⚠ Embed 失敗，切換到 twscrape: ${tweetId}`);
-          tryTwscrapeLoad(url, id);
+          // embed 失敗，自動切換到 TwitterAPI.io
+          console.warn(`⚠ Embed 失敗，切換到 TwitterAPI.io: ${tweetId}`);
+          tryTwitterAPILoad(url, id);
         }
       }).catch(err => {
-        console.error(`✗ Embed 載入失敗，切換到 twscrape: ${tweetId}`, err);
-        tryTwscrapeLoad(url, id);
+        console.error(`✗ Embed 載入失敗，切換到 TwitterAPI.io: ${tweetId}`, err);
+        tryTwitterAPILoad(url, id);
       });
     } else if (attempts < maxAttempts) {
       setTimeout(waitAndCreate, 200);
     } else {
-      // 超時，切換到 twscrape
-      console.warn(`Embed 載入超時，切換到 twscrape`);
-      tryTwscrapeLoad(url, id);
+      // 超時，切換到 TwitterAPI.io
+      console.warn(`Embed 載入超時，切換到 TwitterAPI.io`);
+      tryTwitterAPILoad(url, id);
     }
   }
 
@@ -343,7 +343,7 @@ function createTweetEmbed(url, id) {
               <p class="text-sm text-gray-600 mb-3">此貼文無法嵌入（可能被刪除、設為私密、年齡限制或受地區限制）</p>
               <div class="flex gap-2">
                 <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">在 X 上查看</a>
-                <button onclick="tryTwscrapeLoad('${url}', '${id}')" class="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                <button onclick="tryTwitterAPILoad('${url}', '${id}')" class="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
                   嘗試備用載入
                 </button>
               </div>
@@ -503,18 +503,18 @@ function clearSearch() {
 }
 
 /**
- * 使用 twscrape 嘗試載入貼文（備用方案）
+ * 使用 TwitterAPI.io 嘗試載入貼文（備用方案）
  * @param {string} url - 貼文網址
  * @param {string} containerId - 容器 ID
  */
-async function tryTwscrapeLoad(url, containerId) {
+async function tryTwitterAPILoad(url, containerId) {
   const container = document.getElementById(`tweet-${containerId}`);
   if (!container) return;
 
-  container.innerHTML = '<p class="text-gray-500 text-sm p-4">正在使用備用方式載入...</p>';
+  container.innerHTML = '<p class="text-gray-500 text-sm p-4">正在使用 TwitterAPI.io 載入...</p>';
 
   try {
-    const response = await fetch('/api/twscrape/tweet', {
+    const response = await fetch('/api/twitterapi/tweet', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -526,8 +526,8 @@ async function tryTwscrapeLoad(url, containerId) {
 
     if (result.success && result.data) {
       const tweet = result.data;
-      // 顯示 twscrape 載入的貼文內容
-      container.innerHTML = `<div class="border border-blue-200 rounded-lg p-4 bg-blue-50">
+      // 顯示 TwitterAPI.io 載入的貼文內容
+      container.innerHTML = `<div class="border border-purple-200 rounded-lg p-4 bg-purple-50">
         <div class="flex items-start gap-3 mb-3">
           ${tweet.user && tweet.user.profile_image_url ? 
             `<img src="${escapeHtml(tweet.user.profile_image_url)}" alt="avatar" class="w-12 h-12 rounded-full" />` : 
@@ -552,8 +552,8 @@ async function tryTwscrapeLoad(url, containerId) {
             `<img src="${escapeHtml(photo.url)}" alt="media" class="w-full rounded-lg mb-2" />`
           ).join('') : ''
         }
-        <div class="text-xs text-gray-500 border-t border-blue-200 pt-2 mt-2">
-          <span class="bg-blue-100 px-2 py-1 rounded">備用載入</span>
+        <div class="text-xs text-gray-500 border-t border-purple-200 pt-2 mt-2">
+          <span class="bg-purple-100 px-2 py-1 rounded">TwitterAPI.io</span>
           <a href="${url}" target="_blank" rel="noopener noreferrer" class="ml-2 text-blue-600 hover:underline">在 X 上查看</a>
         </div>
       </div>`;
@@ -561,17 +561,17 @@ async function tryTwscrapeLoad(url, containerId) {
       throw new Error(result.error || '載入失敗');
     }
   } catch (error) {
-    console.error('twscrape 載入失敗:', error);
+    console.error('TwitterAPI.io 載入失敗:', error);
     container.innerHTML = `<div class="p-4 border border-red-300 rounded bg-red-50">
-      <p class="text-sm text-red-600 mb-2">備用載入失敗：${escapeHtml(error.message || '未知錯誤')}</p>
-      <p class="text-xs text-gray-600 mb-3">可能需要設定 twscrape 帳號。請至設定頁面新增帳號。</p>
+      <p class="text-sm text-red-600 mb-2">載入失敗：${escapeHtml(error.message || '未知錯誤')}</p>
+      <p class="text-xs text-gray-600 mb-3">請確認已在設定頁面設定 TwitterAPI.io API 金鑰。</p>
       <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all">在 X 上查看</a>
     </div>`;
   }
 }
 
 // 將函數設為全域
-window.tryTwscrapeLoad = tryTwscrapeLoad;
+window.tryTwitterAPILoad = tryTwitterAPILoad;
 
 /**
  * HTML 轉義函數
