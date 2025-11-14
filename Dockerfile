@@ -24,18 +24,27 @@ COPY . .
 # 建置 Tailwind CSS
 RUN npm run build:css
 
-# 安裝 twscrape 和 Playwright（用於瀏覽器模式以繞過 Cloudflare）
+# 設置環境變數以允許系統範圍的 pip 安裝（PEP 668）
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+
+# 升級 pip
+RUN pip3 install --upgrade pip
+
+# 安裝 twscrape（用於瀏覽器模式以繞過 Cloudflare）
 # 注意：Debian 12+ 需要 --break-system-packages（PEP 668），在 Docker 容器中是安全的
-RUN pip3 install --upgrade pip && \
-    pip3 install --break-system-packages twscrape playwright && \
+RUN pip3 install twscrape && \
     echo "✓ twscrape 安裝成功" && \
-    echo "✓ Playwright 安裝成功" && \
     (twscrape 2>&1 | head -1 || echo "已安裝 twscrape")
 
-# 安裝 Playwright 瀏覽器（Chromium）
+# 安裝 Playwright（用於瀏覽器模式以繞過 Cloudflare）
+RUN pip3 install playwright && \
+    echo "✓ Playwright 安裝成功"
+
+# 安裝 Playwright 瀏覽器（Chromium）及其系統依賴
 RUN playwright install chromium && \
+    echo "✓ Chromium 瀏覽器安裝成功" && \
     playwright install-deps chromium && \
-    echo "✓ Chromium 瀏覽器安裝成功"
+    echo "✓ Chromium 系統依賴安裝成功"
 
 EXPOSE 3000
 
