@@ -70,11 +70,66 @@ browser, context, page = create_stealth_page(
 
 ##### 步驟 1：保存登入狀態
 
-執行以下命令，會開啟瀏覽器視窗：
+**在本地電腦執行（推薦）：**
 
 ```bash
 python3 scripts/save_login_state.py
 ```
+
+**在無頭伺服器環境中執行：**
+
+如果您的伺服器沒有圖形介面（如 Docker 容器、SSH 伺服器），有以下幾種方法：
+
+**方法 1：在本地執行後複製狀態檔案（推薦）**
+1. 在本地電腦執行 `python3 scripts/save_login_state.py`
+2. 將保存的狀態檔案複製到伺服器：
+   ```bash
+   # 在本地
+   scp ~/.twscrape/browser_states/login_state.json user@server:~/.twscrape/browser_states/
+   ```
+
+**方法 2：使用 xvfb（虛擬 X server）⭐ 推薦**
+
+xvfb 會在後台創建一個虛擬顯示，讓瀏覽器可以正常運行。
+
+**安裝 xvfb：**
+```bash
+# Ubuntu/Debian
+sudo apt-get install xvfb
+
+# CentOS/RHEL
+sudo yum install xorg-x11-server-Xvfb
+
+# macOS（需要先安裝 XQuartz）
+brew install xvfb
+```
+
+**使用方式 1：使用 xvfb-run（推薦）**
+```bash
+xvfb-run -a python3 scripts/save_login_state.py
+```
+
+**使用方式 2：使用包裝腳本**
+```bash
+bash scripts/save_login_state_with_xvfb.sh
+```
+
+**使用方式 3：自動檢測（已整合）**
+腳本現在會自動檢測 xvfb 並使用它（如果可用）：
+```bash
+python3 scripts/save_login_state.py
+```
+
+**注意：**
+- xvfb 會創建虛擬顯示，您無法直接看到瀏覽器視窗
+- 如果需要查看瀏覽器，可以配合使用 VNC（如 x11vnc）
+- Docker 容器已預設安裝 xvfb
+
+**方法 3：強制使用 headless 模式（不推薦，無法手動操作）**
+```bash
+PLAYWRIGHT_HEADLESS=true python3 scripts/save_login_state.py
+```
+⚠️ 注意：headless 模式無法進行手動登入操作，通常不會成功。
 
 **操作流程：**
 1. 瀏覽器會自動開啟 Twitter 登入頁面（使用 Stealth 模式）
@@ -174,6 +229,38 @@ chmod +x scripts/playwright_stealth_helper.py
 # 3. 確認依賴檔案存在
 ls -la scripts/*.py
 ```
+
+### 問題 4：在 Docker 容器中執行時出現 "Missing X server" 錯誤
+
+**原因：** Docker 容器沒有圖形介面，無法啟動有頭模式的瀏覽器。
+
+**解決方案：**
+
+**方法 1：在本地執行後複製狀態檔案（推薦）**
+```bash
+# 1. 在本地電腦執行
+python3 scripts/save_login_state.py
+
+# 2. 將狀態檔案複製到 Docker 容器
+docker cp ~/.twscrape/browser_states/login_state.json container_name:/root/.twscrape/browser_states/
+
+# 或使用 volume 掛載
+docker run -v ~/.twscrape:/root/.twscrape your_image
+```
+
+**方法 2：安裝 xvfb 在 Dockerfile 中**
+```dockerfile
+# 在 Dockerfile 中添加
+RUN apt-get update && \
+    apt-get install -y xvfb && \
+    rm -rf /var/lib/apt/lists/*
+
+# 然後使用 xvfb-run 執行
+CMD ["xvfb-run", "-a", "python3", "scripts/save_login_state.py"]
+```
+
+**方法 3：使用遠程瀏覽器連接（進階）**
+設置 Playwright 的遠程瀏覽器連接功能，在本地電腦運行瀏覽器，容器通過網路連接。
 
 ### 問題 3：狀態已保存，但登入仍失敗
 

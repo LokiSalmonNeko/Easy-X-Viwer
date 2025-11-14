@@ -1,13 +1,16 @@
 # 使用 Debian 基礎映像（node:18-slim），因為 Alpine 不支援 Playwright
 FROM node:18-slim
 
-# 安裝 Python 和基本工具（用於 twscrape 和 Playwright）
+# 安裝 Python、基本工具和 xvfb（用於 twscrape、Playwright 和虛擬顯示）
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
     ca-certificates \
+    xvfb \
+    x11vnc \
+    fluxbox \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

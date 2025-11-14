@@ -43,6 +43,7 @@ RUN npm run build:css
 
 # 安裝 twscrape 和 Playwright
 # 注意：Debian 12+ 需要 --break-system-packages（PEP 668），在 Docker 容器中是安全的
+# xvfb 已在上方安裝，用於虛擬顯示（繞過 Cloudflare 時使用）
 RUN pip3 install --upgrade pip && \
     pip3 install --break-system-packages twscrape playwright
 
@@ -57,6 +58,7 @@ CMD ["npm", "start"]
 **重要說明：**
 - 使用 `node:18-slim`（基於 Debian）而非 `node:18-alpine`，因為 **Alpine Linux 不支援 Playwright**
 - `playwright install-deps` 會自動安裝 Chromium 所需的所有系統依賴
+- **已預設安裝 xvfb**，用於虛擬顯示環境（繞過 Cloudflare 時使用）
 
 這個 Dockerfile 確保：
 - ✅ 安裝 Node.js 18
@@ -125,11 +127,25 @@ Zeabur 會依序執行：
 **原因：** Cloudflare 的反機器人保護阻擋了自動登入
 
 **解決方法：**
-1. ✅ **已自動處理**：Dockerfile 已自動安裝 Playwright 和 Chromium，twscrape 會自動使用瀏覽器模式
-2. 如果問題持續，可以嘗試：
+1. ✅ **已自動處理**：Dockerfile 已自動安裝 Playwright、Chromium 和 xvfb
+   - twscrape 會自動使用瀏覽器模式
+   - 可以使用 xvfb 創建虛擬顯示環境
+
+2. **【推薦】使用 Cookie 保存機制：**
+   ```bash
+   # 在容器中執行（使用 xvfb）
+   xvfb-run -a python3 scripts/save_login_state.py
+   
+   # 或在本地執行後複製狀態檔案到容器
+   docker cp ~/.twscrape/browser_states/login_state.json container_name:/root/.twscrape/browser_states/
+   ```
+
+3. 如果問題持續，可以嘗試：
    - 使用代理伺服器（設置環境變數 `HTTP_PROXY` 和 `HTTPS_PROXY`）
    - 更換網路環境或 IP 地址
    - 等待 10-30 分鐘後再試（可能是暫時限制）
+
+**詳細說明：** 請參考 [CLOUDFLARE_BYPASS.md](CLOUDFLARE_BYPASS.md)
 
 ### twscrape 未安裝
 

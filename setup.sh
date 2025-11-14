@@ -98,11 +98,23 @@ else
     echo "  playwright install chromium"
 fi
 
+# 安裝 xvfb（選用，用於無頭伺服器環境）
+echo ""
+echo "檢查 xvfb（虛擬 X server，選用）..."
+if command -v xvfb-run &> /dev/null; then
+    echo "✓ xvfb 已安裝"
+else
+    echo "⚠ xvfb 未安裝（選用功能）"
+    echo "  如果您在無頭伺服器環境中，建議安裝 xvfb："
+    echo "  Ubuntu/Debian: sudo apt-get install xvfb"
+    echo "  CentOS/RHEL: sudo yum install xorg-x11-server-Xvfb"
+fi
+
 # 確保腳本有執行權限
 echo ""
 echo "設置腳本執行權限..."
 if [ -d "scripts" ]; then
-    chmod +x scripts/*.py 2>/dev/null || true
+    chmod +x scripts/*.py scripts/*.sh 2>/dev/null || true
     echo "✓ 腳本權限已設置"
 fi
 
@@ -117,8 +129,15 @@ echo "2. 執行 npm start 啟動伺服器"
 echo "3. 訪問 http://localhost:3000/settings.html 設定 twscrape 帳號"
 echo ""
 echo "【進階】繞過 Cloudflare："
-echo "1. 執行: python3 scripts/save_login_state.py"
-echo "   這會開啟瀏覽器，讓您手動登入並保存狀態"
-echo "2. 之後登入會自動使用保存的狀態，無需再次通過驗證"
+echo "1. 本地執行（推薦）："
+echo "   python3 scripts/save_login_state.py"
+echo ""
+echo "2. 無頭伺服器環境（使用 xvfb）："
+echo "   # 如果已安裝 xvfb"
+echo "   xvfb-run -a python3 scripts/save_login_state.py"
+echo "   或使用包裝腳本："
+echo "   bash scripts/save_login_state_with_xvfb.sh"
+echo ""
+echo "3. 之後登入會自動使用保存的狀態，無需再次通過驗證"
 echo ""
 
