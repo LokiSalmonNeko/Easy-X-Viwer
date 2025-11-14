@@ -26,10 +26,14 @@ sh: 1: pip: not found
 專案已包含完整的 Dockerfile：
 
 ```dockerfile
-FROM node:18-alpine
+# 使用 Debian 基礎映像（node:18-slim），因為 Alpine 不支援 Playwright
+FROM node:18-slim
 
-# 安裝 Python 和 pip（用於 twscrape）
-RUN apk add --no-cache python3 py3-pip
+# 安裝 Python（用於 twscrape 和 Playwright）
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    python3 python3-pip python3-venv ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY package*.json ./
@@ -37,15 +41,21 @@ RUN npm install
 COPY . .
 RUN npm run build:css
 
-# 安裝 twscrape 和 Playwright（用於瀏覽器模式以繞過 Cloudflare）
-RUN pip3 install --break-system-packages twscrape playwright
+# 安裝 twscrape 和 Playwright
+RUN pip3 install --upgrade pip && \
+    pip3 install twscrape playwright
 
-# 安裝 Playwright 瀏覽器（Chromium）
-RUN playwright install chromium
+# 安裝 Playwright 瀏覽器（Chromium）及其系統依賴
+RUN playwright install chromium && \
+    playwright install-deps chromium
 
 EXPOSE 3000
 CMD ["npm", "start"]
 ```
+
+**重要說明：**
+- 使用 `node:18-slim`（基於 Debian）而非 `node:18-alpine`，因為 **Alpine Linux 不支援 Playwright**
+- `playwright install-deps` 會自動安裝 Chromium 所需的所有系統依賴
 
 這個 Dockerfile 確保：
 - ✅ 安裝 Node.js 18
